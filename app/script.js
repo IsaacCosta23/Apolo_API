@@ -53,7 +53,22 @@ async function fetchJSON(url, options = {}) {
         const text = await response.text();
         throw new Error(text || 'Erro de rede');
     }
-    return response.json();
+
+    if (response.status === 204 || response.status === 205) {
+        return null;
+    }
+
+    const text = await response.text();
+    if (!text) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        console.warn('fetchJSON: resposta sem JSON válido', error);
+        return null;
+    }
 }
 
 async function checkAPIStatus() {
