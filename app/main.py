@@ -1,6 +1,9 @@
 import os
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.database import Base, engine
 from app.routes import denuncia_router
@@ -9,8 +12,16 @@ app = FastAPI()
 Base.metadata.create_all(bind=engine)
 app.include_router(denuncia_router)
 
+# Montar arquivos estáticos
+frontend_path = Path(__file__).parent
+app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+
 @app.get("/")
-def root():
+async def read_root():
+    return FileResponse(frontend_path / "index.html")
+
+@app.get("/api")
+def api_root():
     return {"message": "API Apolo CodexAI - FastAPI base"}
 
 
