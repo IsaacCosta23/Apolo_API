@@ -1,0 +1,2 @@
+class DenunciaNotFound(Exception):
+    pass
