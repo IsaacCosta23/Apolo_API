@@ -80,12 +80,18 @@ header {
     position: relative;
 }
 
-header h1 {
-    font-size: 1.75rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin-bottom: 0.25rem;
-    color: var(--text-primary);
+/* ============================================
+   Main Logo Styles
+   ============================================ */
+#main-logo {
+    /* Ajuste manual: altere o width para definir a largura do logo */
+    width: 200px; /* Exemplo: 200px - ajuste conforme necessário */
+    /* Ajuste manual: altere o height para definir a altura do logo */
+    height: auto; /* Mantém proporção - ou defina um valor fixo se preferir */
+    /* Ajuste manual: altere o margin para posicionamento/espaçamento */
+    margin: 0 auto 0.25rem; /* Centralizado horizontalmente, com espaçamento inferior */
+    display: block;
+    max-width: 100%;
 }
 
 header p {
@@ -484,8 +490,8 @@ main {
         padding: 1.25rem 1rem;
     }
 
-    header h1 {
-        font-size: 1.35rem;
+    #main-logo {
+        width: 150px; /* Ajuste para dispositivos móveis */
     }
 
     nav {
@@ -555,8 +561,8 @@ main {
         grid-template-columns: 1fr;
     }
 
-    header h1 {
-        font-size: 1.15rem;
+    #main-logo {
+        width: 120px; /* Ajuste para telas muito pequenas */
     }
 
     header p {

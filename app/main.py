@@ -16,6 +16,10 @@ app.include_router(denuncia_router)
 static_dir = Path("app/frontend/static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Montar arquivos da pasta frontend para servir logo.png e outros
+frontend_dir = Path("app/frontend")
+app.mount("/frontend", StaticFiles(directory=frontend_dir), name="frontend")
+
 # Rota dedicada para servir o favicon (usado automaticamente pelos navegadores)
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
