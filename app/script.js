@@ -1,5 +1,5 @@
 const API_BASE = 'https://apolo-api-nd3u.onrender.com';
-const CRIMES_ENDPOINT = '/tipos-crime';
+const CRIMES_ENDPOINT = '/denuncias/tipos-crime';
 const DENUNCIAS_ENDPOINT = '/denuncias';
 const DEFAULT_CENTER = { lat: -8.057, lng: -34.879 }; // Avenida Conde da Boa Vista, Recife
 const DEFAULT_ZOOM = 13;
