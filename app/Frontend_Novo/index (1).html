@@ -12,38 +12,38 @@
     <header>
         <div class="header-content">
             <h1>Apolo API</h1>
-            <p>Monitoramento de Denuncias de Crimes</p>
+            <p>Monitoramento de Denúncias de Crimes</p>
             <div id="api-status">Verificando status da API...</div>
         </div>
     </header>
 
     <nav>
-        <button id="list-btn" class="active">Lista de Denuncias</button>
+        <button id="list-btn" class="active">Lista de Denúncias</button>
         <button id="map-btn">Mapa</button>
-        <button id="create-btn">Nova Denuncia</button>
+        <button id="create-btn">Nova Denúncia</button>
     </nav>
 
     <main>
         <div id="loading" class="hidden">
             <div class="sun-icon">☀️</div>
             <h3>Iluminando a comunidade em tempo real</h3>
-            <p>Enquanto buscamos os dados, a luz deste projeto atravessa a escuridao de quem vive sem saber o que acontece ao seu redor.</p>
+            <p>Enquanto buscamos os dados, a luz deste projeto atravessa a escuridão de quem vive sem saber o que acontece ao seu redor.</p>
         </div>
 
         <div id="error-message" class="hidden"></div>
 
         <div id="list-view">
-            <h2>Denuncias</h2>
+            <h2>Denúncias</h2>
             <ul id="denuncias-list"></ul>
         </div>
 
         <div id="map-view" class="hidden">
-            <h2>Mapa de Denuncias</h2>
+            <h2>Mapa de Denúncias</h2>
             <div id="map"></div>
         </div>
 
         <div id="create-view" class="hidden">
-            <h2>Criar Nova Denuncia</h2>
+            <h2>Criar Nova Denúncia</h2>
             <form id="create-form">
                 <label for="tipo">Tipo de Crime:</label>
                 <select id="tipo" required>
@@ -51,8 +51,8 @@
                 </select>
                 <div id="tipo-loading" class="small-text">Carregando tipos de crime...</div>
 
-                <label for="descricao">Descricao:</label>
-                <textarea id="descricao" required placeholder="Descreva a denuncia em detalhes..."></textarea>
+                <label for="descricao">Descrição:</label>
+                <textarea id="descricao" required placeholder="Descreva a denúncia em detalhes..."></textarea>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -65,13 +65,13 @@
                     </div>
                 </div>
 
-                <button type="button" id="get-location">Usar Minha Localizacao</button>
+                <button type="button" id="get-location">📍 Usar Minha Localização</button>
 
                 <label for="anonimo" class="checkbox-label">
-                    <input type="checkbox" id="anonimo"> Denuncia Anonima
+                    <input type="checkbox" id="anonimo"> Denúncia Anônima
                 </label>
 
-                <button type="submit">Criar Denuncia</button>
+                <button type="submit">Criar Denúncia</button>
             </form>
         </div>
     </main>

@@ -1,10 +1,12 @@
 /* ============================================
-   Apolo CodexAI - Modern Dashboard Stylesheet
-   Palette: White - Gray Scale - Yellow Accent
+   Apolo CodexAI — Modern Dashboard Stylesheet
+   Palette: White · Gray Scale · Yellow Accent
    ============================================ */
 
+/* ---------- Import Google Font ---------- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* ---------- Reset & Base ---------- */
 * {
     margin: 0;
     padding: 0;
@@ -12,27 +14,42 @@
 }
 
 :root {
+    /* Backgrounds */
     --bg-primary: #ffffff;
     --bg-secondary: #f8f9fa;
     --bg-tertiary: #f1f3f5;
+
+    /* Text */
     --text-primary: #212529;
     --text-secondary: #6c757d;
     --text-tertiary: #adb5bd;
+
+    /* Borders */
     --border-light: #e9ecef;
     --border-medium: #dee2e6;
+
+    /* Accent (Yellow) */
     --accent: #f5c518;
     --accent-hover: #e0b000;
     --accent-light: rgba(245, 197, 24, 0.12);
+
+    /* Danger levels */
     --nivel-baixo: #38a169;
     --nivel-medio: #dd6b20;
     --nivel-alto: #e53e3e;
     --nivel-default: #5a67d8;
+
+    /* Shadows */
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.07);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.10);
+
+    /* Radius */
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
+
+    /* Transitions */
     --transition: all 0.3s ease;
 }
 
@@ -48,23 +65,22 @@ body {
     min-height: 100vh;
 }
 
+/* ---------- Scrollbar ---------- */
 ::-webkit-scrollbar {
     width: 6px;
 }
-
 ::-webkit-scrollbar-track {
     background: var(--bg-secondary);
 }
-
 ::-webkit-scrollbar-thumb {
     background: var(--border-medium);
     border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-tertiary);
 }
 
+/* ---------- Header ---------- */
 .header-content {
     max-width: 960px;
     margin: 0 auto;
@@ -106,6 +122,7 @@ header p {
     transition: var(--transition);
 }
 
+/* ---------- Navigation ---------- */
 nav {
     background: var(--bg-primary);
     padding: 0.75rem 1rem;
@@ -145,12 +162,14 @@ nav button.active {
     font-weight: 600;
 }
 
+/* ---------- Main Container ---------- */
 main {
     max-width: 960px;
     margin: 2rem auto;
     padding: 0 1.25rem;
 }
 
+/* ---------- Loading State ---------- */
 #loading {
     text-align: center;
     padding: 3rem 2rem;
@@ -164,9 +183,9 @@ main {
 }
 
 @keyframes pulse {
-    0% { transform: scale(1); opacity: 0.7; }
-    50% { transform: scale(1.12); opacity: 1; }
-    100% { transform: scale(1); opacity: 0.7; }
+    0%   { transform: scale(1);    opacity: 0.7; }
+    50%  { transform: scale(1.12); opacity: 1;   }
+    100% { transform: scale(1);    opacity: 0.7; }
 }
 
 #loading h3 {
@@ -187,6 +206,7 @@ main {
     display: none;
 }
 
+/* ---------- Error Message ---------- */
 #error-message {
     background: #fff5f5;
     color: var(--nivel-alto);
@@ -198,10 +218,12 @@ main {
     border-left: 4px solid var(--nivel-alto);
 }
 
+/* ---------- Hidden Utility ---------- */
 .hidden {
     display: none !important;
 }
 
+/* ---------- View Cards ---------- */
 #list-view,
 #map-view,
 #create-view {
@@ -214,7 +236,7 @@ main {
 
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: translateY(0);    }
 }
 
 #list-view h2,
@@ -229,6 +251,7 @@ main {
     display: inline-block;
 }
 
+/* ---------- Denuncias List ---------- */
 #denuncias-list {
     list-style: none;
     display: flex;
@@ -267,6 +290,7 @@ main {
     line-height: 1.5;
 }
 
+/* ---------- Nivel Periculosidade Badges ---------- */
 .nivel-periculosidade {
     display: inline-block;
     padding: 0.2rem 0.65rem;
@@ -279,18 +303,11 @@ main {
     margin-top: 0.4rem;
 }
 
-.nivel-baixo {
-    background: var(--nivel-baixo);
-}
+.nivel-baixo  { background: var(--nivel-baixo);  }
+.nivel-medio  { background: var(--nivel-medio);  }
+.nivel-alto   { background: var(--nivel-alto);   }
 
-.nivel-medio {
-    background: var(--nivel-medio);
-}
-
-.nivel-alto {
-    background: var(--nivel-alto);
-}
-
+/* ---------- Delete Button ---------- */
 .delete-btn {
     position: absolute;
     top: 1.25rem;
@@ -313,6 +330,7 @@ main {
     border-color: var(--nivel-alto);
 }
 
+/* ---------- Map ---------- */
 #map {
     height: 500px;
     border-radius: var(--radius-sm);
@@ -320,6 +338,7 @@ main {
     overflow: hidden;
 }
 
+/* ---------- Create Form ---------- */
 #create-form {
     display: flex;
     flex-direction: column;
@@ -367,6 +386,7 @@ main {
     margin-right: 0.4rem;
 }
 
+/* Checkbox label styling */
 #create-form label[for="anonimo"] {
     display: flex;
     align-items: center;
@@ -381,6 +401,7 @@ main {
     font-style: italic;
 }
 
+/* Form layout helpers */
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -400,6 +421,7 @@ main {
     cursor: pointer;
 }
 
+/* ---------- Buttons ---------- */
 #create-form button[type="submit"] {
     background: var(--accent);
     color: var(--text-primary);
@@ -442,6 +464,7 @@ main {
     box-shadow: var(--shadow-sm);
 }
 
+/* ---------- Toast Notifications ---------- */
 #toast-container {
     position: fixed;
     bottom: 1.5rem;
@@ -476,9 +499,10 @@ main {
 
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    to   { transform: translateX(0);    opacity: 1; }
 }
 
+/* ---------- Responsive ---------- */
 @media (max-width: 768px) {
     header {
         padding: 1.25rem 1rem;
