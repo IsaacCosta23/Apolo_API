@@ -12,13 +12,13 @@ app = FastAPI()
 Base.metadata.create_all(bind=engine)
 app.include_router(denuncia_router)
 
-# Montar arquivos estáticos
-frontend_path = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+# Montar arquivos estáticos a partir do diretório raiz do projeto
+static_dir = Path(".")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/")
 async def read_root():
-    return FileResponse(frontend_path / "index.html")
+    return FileResponse(Path("app") / "index.html")
 
 @app.get("/api")
 def api_root():
