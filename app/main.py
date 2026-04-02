@@ -12,8 +12,8 @@ app = FastAPI()
 Base.metadata.create_all(bind=engine)
 app.include_router(denuncia_router)
 
-# Montar arquivos estáticos a partir do diretório raiz do projeto
-static_dir = Path(".")
+# Montar arquivos estáticos a partir da pasta app, onde index.css/js estão localizados
+static_dir = Path("app")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/")
