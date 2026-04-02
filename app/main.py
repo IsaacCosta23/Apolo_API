@@ -16,6 +16,12 @@ app.include_router(denuncia_router)
 static_dir = Path("app")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Rota dedicada para servir o favicon (usado automaticamente pelos navegadores)
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    favicon_path = Path(__file__).resolve().parent / "favicon" / "favicon.ico"
+    return FileResponse(favicon_path)
+
 @app.get("/")
 async def read_root():
     return FileResponse(Path("app") / "index.html")
