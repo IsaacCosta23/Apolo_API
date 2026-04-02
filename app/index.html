@@ -9,7 +9,7 @@
 </head>
 <body>
     <header>
-        <h1>Apolo CodexAI</h1>
+        <h1>Apolo API</h1>
         <p>Monitoramento de Denúncias de Crimes</p>
         <div id="api-status">Verificando status da API...</div>
     </header>
@@ -22,8 +22,9 @@
 
     <main>
         <div id="loading" class="hidden">
-            <div class="spinner"></div>
-            <p>Carregando...</p>
+            <div class="sun-icon">☀️</div>
+            <h3>Iluminando a comunidade em tempo real</h3>
+            <p>Enquanto buscamos os dados, a luz deste projeto atravessa a escuridão de quem vive sem saber o que acontece ao seu redor.</p>
         </div>
 
         <div id="error-message" class="hidden"></div>
@@ -42,7 +43,10 @@
             <h2>Criar Nova Denúncia</h2>
             <form id="create-form">
                 <label for="tipo">Tipo de Crime:</label>
-                <input type="text" id="tipo" required>
+                <select id="tipo" required>
+                    <option value="">Selecione um tipo de crime</option>
+                </select>
+                <div id="tipo-loading" class="small-text">Carregando tipos de crime...</div>
 
                 <label for="descricao">Descrição:</label>
                 <textarea id="descricao" required></textarea>

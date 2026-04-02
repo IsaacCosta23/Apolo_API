@@ -21,6 +21,21 @@ def criar_denuncia_route(denuncia: DenunciaCreate, db: Session = Depends(get_db)
 def listar_denuncias_route(db: Session = Depends(get_db)):
     return listar_denuncias(db)
 
+@router.get("/tipos-crime", response_model=list[str])
+def listar_tipos_crime_route():
+    # Uma lista de tipos de crime válida, mantida centralizada para frontend e backend.
+    return [
+        'Roubo',
+        'Furto',
+        'Agressão',
+        'Violência Sexual',
+        'Vandalismo',
+        'Tráfico de Drogas',
+        'Homicídio',
+        'Tentativa de Homicídio',
+        'Perturbação de Sossego'
+    ]
+
 @router.delete("/{denuncia_id}", status_code=204)
 def deletar_denuncia_route(denuncia_id: int, db: Session = Depends(get_db)):
     deletar_denuncia(denuncia_id, db)
