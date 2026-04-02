@@ -7,14 +7,14 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f5f5f5;
-    color: #333;
+    background-color: #ffffe0;
+    color: #000000;
     line-height: 1.6;
 }
 
 header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: linear-gradient(135deg, #ffff00 0%, #000000 100%);
+    color: #000000;
     padding: 1rem;
     text-align: center;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -30,7 +30,7 @@ header h1 {
 }
 
 nav {
-    background: white;
+    background: #000000;
     padding: 1rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     display: flex;
@@ -39,8 +39,8 @@ nav {
 }
 
 nav button {
-    background: #667eea;
-    color: white;
+    background: #ffff00;
+    color: #000000;
     border: none;
     padding: 0.5rem 1rem;
     border-radius: 5px;
@@ -49,7 +49,7 @@ nav button {
 }
 
 nav button:hover, nav button.active {
-    background: #5a67d8;
+    background: #e6e600;
 }
 
 main {
@@ -82,15 +82,15 @@ main {
 
 
 #error-message {
-    background: #fed7d7;
-    color: #c53030;
+    background: #ffff99;
+    color: #000000;
     padding: 1rem;
     border-radius: 5px;
     margin-bottom: 1rem;
 }
 
 #list-view, #map-view, #create-view {
-    background: white;
+    background: #ffffe0;
     padding: 2rem;
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -132,8 +132,8 @@ main {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    background: #e53e3e;
-    color: white;
+    background: #000000;
+    color: #ffff00;
     border: none;
     padding: 0.25rem 0.5rem;
     border-radius: 3px;
@@ -162,8 +162,8 @@ main {
 }
 
 #create-form button {
-    background: #48bb78;
-    color: white;
+    background: #ffff00;
+    color: #000000;
     border: none;
     padding: 0.75rem;
     border-radius: 5px;
@@ -172,15 +172,15 @@ main {
 }
 
 #create-form button:hover {
-    background: #38a169;
+    background: #333333;
 }
 
 #get-location {
-    background: #3182ce;
+    background: #000000;
 }
 
 #get-location:hover {
-    background: #2c5282;
+    background: #333333;
 }
 
 /* Toast notifications */
@@ -188,8 +188,8 @@ main {
     position: fixed;
     bottom: 1rem;
     right: 1rem;
-    background: #48bb78;
-    color: white;
+    background: #ffff00;
+    color: #000000;
     padding: 1rem;
     border-radius: 5px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -198,7 +198,8 @@ main {
 }
 
 .toast.error {
-    background: #e53e3e;
+    background: #000000;
+    color: #ffff00;
 }
 
 @keyframes slideIn {
