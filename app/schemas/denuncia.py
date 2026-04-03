@@ -4,8 +4,7 @@ from datetime import datetime
 class DenunciaCreate(BaseModel):
     tipo: str
     descricao: str
-    latitude: float
-    longitude: float
+    endereco: str
     anonimo: bool = False
     data_hora: datetime | None = None
 

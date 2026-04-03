@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+from dotenv import load_dotenv # type: ignore
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles

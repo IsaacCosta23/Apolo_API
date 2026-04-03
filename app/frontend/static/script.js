@@ -22,9 +22,7 @@ const createForm = document.getElementById('create-form');
 const toastContainer = document.getElementById('toast-container');
 const tipoSelect = document.getElementById('tipo');
 const tipoLoading = document.getElementById('tipo-loading');
-const latitudeInput = document.getElementById('latitude');
-const longitudeInput = document.getElementById('longitude');
-const getLocationBtn = document.getElementById('get-location');
+const enderecoInput = document.getElementById('endereco');
 
 // Navegação
 document.getElementById('list-btn').addEventListener('click', () => showView('list'));
@@ -203,11 +201,11 @@ function initMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    map.on('click', (e) => {
-        latitudeInput.value = e.latlng.lat.toFixed(6);
-        longitudeInput.value = e.latlng.lng.toFixed(6);
-        setUserMarker(e.latlng.lat, e.latlng.lng, 'Local selecionado');
-    });
+    // Desabilitar arrastar, mas permitir zoom
+    map.dragging.disable();
+    map.touchZoom.enable();
+    map.scrollWheelZoom.enable();
+    map.doubleClickZoom.enable();
 
     renderMap();
 }
@@ -230,25 +228,35 @@ function requestGeolocation() {
         return;
     }
 
-    navigator.geolocation.getCurrentPosition(position => {
-        const { latitude, longitude } = position.coords;
-        if (map) {
-            map.setView([latitude, longitude], USER_ZOOM);
-            setUserMarker(latitude, longitude);
-        }
-        upgradeLocationInputs(latitude, longitude);
-        showToast('Posição atualizada: você está no mapa.', false);
-    }, error => {
-        if (error.code === error.PERMISSION_DENIED) {
-            showToast('Permissão de localização negada. Usando ponto padrão.', true);
-        } else {
-            showToast('Não foi possível obter localização. Usando ponto padrão.', true);
-        }
+    navigator.geolocation.watchPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
 
-        if (map) {
-            map.setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_ZOOM);
+            if (map) {
+                map.setView([lat, lng], 17);
+                if (userMarker) {
+                    userMarker.setLatLng([lat, lng]);
+                } else {
+                    userMarker = L.marker([lat, lng]).addTo(map).bindPopup('Você está aqui').openPopup();
+                }
+            }
+            showToast('Posição atualizada em tempo real.', false);
+        },
+        (error) => {
+            console.error('Erro de geolocalização:', error);
+            if (error.code === error.PERMISSION_DENIED) {
+                showToast('Permissão de localização negada.', true);
+            } else {
+                showToast('Erro ao obter localização.', true);
+            }
+        },
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 5000
         }
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    );
 }
 
 createForm.addEventListener('submit', async (e) => {
@@ -256,16 +264,15 @@ createForm.addEventListener('submit', async (e) => {
 
     const tipo = tipoSelect.value.trim();
     const descricao = document.getElementById('descricao').value.trim();
-    const latitude = Number(latitudeInput.value);
-    const longitude = Number(longitudeInput.value);
+    const endereco = enderecoInput.value.trim();
     const anonimo = document.getElementById('anonimo').checked;
 
     if (!tipo) return showError('Escolha um tipo de crime válido.');
     if (!validCrimes.includes(tipo)) return showError('Tipo de crime inválido. Atualize a página e tente novamente.');
     if (!descricao) return showError('Descrição é obrigatória.');
-    if (!isFinite(latitude) || !isFinite(longitude)) return showError('Latitude e longitude válidas são obrigatórias.');
+    if (!endereco) return showError('Endereço é obrigatório.');
 
-    const payload = { tipo, descricao, latitude, longitude, anonimo };
+    const payload = { tipo, descricao, endereco, anonimo };
 
     showLoading(true);
     hideError();
@@ -307,10 +314,7 @@ async function deleteDenuncia(id) {
     }
 }
 
-getLocationBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    requestGeolocation();
-});
+
 
 function showLoading(show) {
     loading.classList.toggle('hidden', !show);

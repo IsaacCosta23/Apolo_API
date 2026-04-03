@@ -4,6 +4,7 @@ from app.models import Denuncia
 from app.services.denuncia_builder import DenunciaBuilder
 from app.services.denuncia_repository import DenunciaRepository
 from app.services.processador_crime_factory import ProcessadorCrimeFactory
+from app.services.geocoding import geocodificar
 
 
 def _build_denuncia(payload: dict) -> Denuncia:
@@ -35,17 +36,26 @@ def _to_response(denuncia: Denuncia) -> dict:
 
 
 def criar_denuncia(payload: dict, db: Session) -> dict:
+    endereco = payload["endereco"]
+    coords = geocodificar(endereco)
+    if not coords:
+        raise HTTPException(status_code=400, detail="Endereço inválido ou não encontrado")
+
+    lat, lon = coords
+
     if DenunciaRepository.buscar_duplicada(
         db,
         payload["tipo"],
-        payload["latitude"],
-        payload["longitude"],
+        lat,
+        lon,
     ):
         raise HTTPException(
             status_code=409,
-            detail="Denúncia duplicada: mesmo tipo, latitude e longitude já cadastrados.",
+            detail="Denúncia duplicada: mesmo tipo e endereço já cadastrados.",
         )
 
+    payload["latitude"] = lat
+    payload["longitude"] = lon
     denuncia = _build_denuncia(payload)
     saved = DenunciaRepository.salvar(db, denuncia)
     return _to_response(saved)
