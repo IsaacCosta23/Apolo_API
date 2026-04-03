@@ -55,7 +55,11 @@
                 <textarea id="descricao" required placeholder="Descreva a denuncia em detalhes..."></textarea>
 
                 <label for="endereco">Endereço:</label>
-                <input type="text" id="endereco" required placeholder="Digite o endereço completo (ex: Av Conde da Boa Vista, Recife)">
+                <div class="address-field">
+                    <input type="text" id="endereco" required placeholder="Digite o endereço" autocomplete="off">
+                    <div id="address-loading" class="small-text hidden">Buscando sugestões...</div>
+                    <ul id="sugestoes" class="sugestoes-lista hidden"></ul>
+                </div>
 
                 <button type="button" id="get-location">Usar Minha Localizacao</button>
 

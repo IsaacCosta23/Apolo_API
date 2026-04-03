@@ -1,10 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 class DenunciaCreate(BaseModel):
     tipo: str
     descricao: str
-    endereco: str
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
     anonimo: bool = False
     data_hora: datetime | None = None
 
