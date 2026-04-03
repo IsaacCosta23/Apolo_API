@@ -218,7 +218,9 @@ function getColor(nivel) {
         case 'medio':
             return '#ed8936';
         case 'alto':
-            return '#e53e3e';
+            return '#e34747';
+        case 'máximo':
+            return '#ff0000';
         default:
             return '#667eea';
     }
