@@ -36,29 +36,35 @@ def _to_response(denuncia: Denuncia) -> dict:
 
 
 def criar_denuncia(payload: dict, db: Session) -> dict:
-    endereco = payload["endereco"]
-    coords = geocodificar(endereco)
-    if not coords:
-        raise HTTPException(status_code=400, detail="Endereço inválido ou não encontrado")
+    try:
+        endereco = payload["endereco"]
+        coords = geocodificar(endereco)
+        if not coords:
+            raise HTTPException(status_code=400, detail="Endereço inválido ou não encontrado")
 
-    lat, lon = coords
+        lat, lon = coords
 
-    if DenunciaRepository.buscar_duplicada(
-        db,
-        payload["tipo"],
-        lat,
-        lon,
-    ):
-        raise HTTPException(
-            status_code=409,
-            detail="Denúncia duplicada: mesmo tipo e endereço já cadastrados.",
-        )
+        if DenunciaRepository.buscar_duplicada(
+            db,
+            payload["tipo"],
+            lat,
+            lon,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Denúncia duplicada: mesmo tipo e endereço já cadastrados.",
+            )
 
-    payload["latitude"] = lat
-    payload["longitude"] = lon
-    denuncia = _build_denuncia(payload)
-    saved = DenunciaRepository.salvar(db, denuncia)
-    return _to_response(saved)
+        payload["latitude"] = lat
+        payload["longitude"] = lon
+        denuncia = _build_denuncia(payload)
+        saved = DenunciaRepository.salvar(db, denuncia)
+        return _to_response(saved)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Erro interno ao criar denúncia: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 
 def listar_denuncias(db: Session) -> list[dict]:
