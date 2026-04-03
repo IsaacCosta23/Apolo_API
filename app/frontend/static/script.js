@@ -31,6 +31,8 @@ const enderecoInput = document.getElementById('endereco');
 const sugestoesList = document.getElementById('sugestoes');
 const addressLoading = document.getElementById('address-loading');
 const getLocationButton = document.getElementById('get-location');
+const menuButton = document.getElementById('btn-menu');
+const linksDropdown = document.getElementById('links-dropdown');
 
 document.getElementById('list-btn').addEventListener('click', () => showView('list'));
 document.getElementById('map-btn').addEventListener('click', () => showView('map'));
@@ -527,6 +529,36 @@ function showToast(message, isError = false) {
     setTimeout(() => toast.remove(), 3500);
 }
 
+function setLinksMenuOpen(isOpen) {
+    linksDropdown.classList.toggle('hidden', !isOpen);
+    linksDropdown.setAttribute('aria-hidden', String(!isOpen));
+    menuButton.setAttribute('aria-expanded', String(isOpen));
+}
+
+function setupFloatingMenu() {
+    menuButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const isOpen = linksDropdown.classList.contains('hidden');
+        setLinksMenuOpen(isOpen);
+    });
+
+    linksDropdown.addEventListener('click', (event) => {
+        event.stopPropagation();
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('#menu-links')) {
+            setLinksMenuOpen(false);
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            setLinksMenuOpen(false);
+        }
+    });
+}
+
 function setupAddressAutocomplete() {
     enderecoInput.addEventListener('input', handleAddressInput);
 
@@ -546,6 +578,7 @@ function setupAddressAutocomplete() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    setupFloatingMenu();
     setupAddressAutocomplete();
     checkAPIStatus();
     initMap();
