@@ -233,7 +233,15 @@ function getColor(nivel) {
 function initMap() {
     if (map) return;
 
-    map = L.map('map').setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_ZOOM);
+    map = L.map('map', {
+        dragging: true,
+        touchZoom: true,
+        doubleClickZoom: true,
+        scrollWheelZoom: true,
+        boxZoom: true,
+        keyboard: true,
+        zoomControl: true
+    }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_ZOOM);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
@@ -242,6 +250,12 @@ function initMap() {
     map.touchZoom.enable();
     map.doubleClickZoom.enable();
     map.scrollWheelZoom.enable();
+    map.boxZoom.enable();
+    map.keyboard.enable();
+
+    if (map.tap) {
+        map.tap.enable();
+    }
 
     map.on('click', async (event) => {
         const { lat, lng } = event.latlng;
