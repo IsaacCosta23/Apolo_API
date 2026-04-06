@@ -9,7 +9,6 @@ const USER_ZOOM = 15;
 const AUTOCOMPLETE_MIN_LENGTH = 3;
 
 let map;
-let userMarker;
 let selectedMarker;
 let denuncias = [];
 let validCrimes = [];
@@ -191,10 +190,6 @@ function renderMap() {
         }
     });
 
-    if (userMarker) {
-        userMarker.addTo(map);
-    }
-
     if (selectedMarker) {
         selectedMarker.addTo(map);
     }
@@ -249,16 +244,6 @@ function initMap() {
     map.doubleClickZoom.enable();
 
     renderMap();
-}
-
-function setUserMarker(lat, lng, message = 'Você está aqui') {
-    if (!map) return;
-
-    if (userMarker) {
-        map.removeLayer(userMarker);
-    }
-
-    userMarker = L.marker([lat, lng]).addTo(map).bindPopup(message);
 }
 
 function setSelectedMarker(lat, lon, message = 'Ponto selecionado para a denúncia') {
@@ -496,14 +481,11 @@ async function useCurrentLocation() {
                 updateSelectedLocation(lat, lon, data.display_name || 'Endereço não encontrado', {
                     popupMessage: 'Localização atual'
                 });
-                setUserMarker(lat, lon, 'Localização atual');
-
                 showToast('Localização preenchida com sucesso.');
             } catch (error) {
                 updateSelectedLocation(lat, lon, 'Endereço não encontrado', {
                     popupMessage: 'Localização atual sem endereço associado'
                 });
-                setUserMarker(lat, lon, 'Localização atual');
                 showToast('Localização obtida, mas não foi possível converter em endereço.', true);
                 console.error('Erro reverse geocoding:', error);
             } finally {
