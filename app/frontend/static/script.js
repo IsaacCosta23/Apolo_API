@@ -222,7 +222,7 @@ function getColor(nivel) {
         case 'máximo':
             return '#ff0000';
         default:
-            return '#667eea';
+            return '#e8ea66';
     }
 }
 
