@@ -10,6 +10,7 @@ const AUTOCOMPLETE_MIN_LENGTH = 3;
 
 let map;
 let userMarker;
+let selectedMarker;
 let denuncias = [];
 let validCrimes = [];
 let selectedLat = null;
@@ -194,6 +195,10 @@ function renderMap() {
         userMarker.addTo(map);
     }
 
+    if (selectedMarker) {
+        selectedMarker.addTo(map);
+    }
+
     denuncias.forEach((denuncia) => {
         const color = getColor(denuncia.nivel_periculosidade);
         const marker = L.circleMarker([denuncia.latitude, denuncia.longitude], {
@@ -234,7 +239,11 @@ function initMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    map.dragging.disable();
+    map.on('click', async (event) => {
+        const { lat, lng } = event.latlng;
+        await selectLocationFromMap(lat, lng);
+    });
+
     map.touchZoom.enable();
     map.scrollWheelZoom.enable();
     map.doubleClickZoom.enable();
@@ -252,16 +261,51 @@ function setUserMarker(lat, lng, message = 'Você está aqui') {
     userMarker = L.marker([lat, lng]).addTo(map).bindPopup(message);
 }
 
-function updateSelectedLocation(lat, lon, label) {
+function setSelectedMarker(lat, lon, message = 'Ponto selecionado para a denúncia') {
+    if (!map) return;
+
+    if (selectedMarker) {
+        selectedMarker.setLatLng([lat, lon]);
+        selectedMarker.setPopupContent(message);
+        return;
+    }
+
+    selectedMarker = L.marker([lat, lon]).addTo(map).bindPopup(message);
+}
+
+function clearSelectedMarker() {
+    if (!map || !selectedMarker) return;
+
+    map.removeLayer(selectedMarker);
+    selectedMarker = null;
+}
+
+function updateSelectedLocation(lat, lon, label, options = {}) {
+    const {
+        syncMarker = true,
+        centerMap = true,
+        zoom = USER_ZOOM,
+        popupMessage = 'Local selecionado para a denúncia'
+    } = options;
+
     selectedLat = Number(lat);
     selectedLon = Number(lon);
-    enderecoInput.value = label;
+    enderecoInput.value = label || 'Endereço não encontrado';
     clearSuggestions();
+
+    if (syncMarker) {
+        setSelectedMarker(selectedLat, selectedLon, popupMessage);
+    }
+
+    if (centerMap && map) {
+        map.setView([selectedLat, selectedLon], zoom);
+    }
 }
 
 function resetSelectedLocation() {
     selectedLat = null;
     selectedLon = null;
+    clearSelectedMarker();
 }
 
 function setAddressLoading(isLoading, message = 'Buscando sugestões...') {
@@ -310,7 +354,9 @@ function renderSuggestions(suggestions) {
         `;
 
         suggestion.addEventListener('click', () => {
-            updateSelectedLocation(item.lat, item.lon, item.display_name);
+            updateSelectedLocation(item.lat, item.lon, item.display_name, {
+                popupMessage: 'Endereço selecionado via busca'
+            });
             showToast('Endereço selecionado com sucesso.');
         });
 
@@ -379,7 +425,8 @@ async function reverseGeocode(lat, lon) {
     const params = new URLSearchParams({
         lat: String(lat),
         lon: String(lon),
-        format: 'json'
+        format: 'json',
+        addressdetails: '1'
     });
 
     const response = await fetch(`${NOMINATIM_REVERSE_URL}?${params.toString()}`, {
@@ -393,6 +440,41 @@ async function reverseGeocode(lat, lon) {
     }
 
     return response.json();
+}
+
+async function buscarEndereco(lat, lon) {
+    try {
+        const data = await reverseGeocode(lat, lon);
+        const endereco = data?.display_name || 'Endereço não encontrado';
+
+        updateSelectedLocation(lat, lon, endereco, {
+            popupMessage: data?.display_name
+                ? 'Ponto selecionado no mapa'
+                : 'Ponto selecionado no mapa sem endereço associado'
+        });
+
+        return data;
+    } catch (error) {
+        console.error('Erro ao buscar endereço:', error);
+
+        updateSelectedLocation(lat, lon, 'Endereço não encontrado', {
+            popupMessage: 'Ponto selecionado no mapa sem endereço associado'
+        });
+
+        return null;
+    }
+}
+
+async function selectLocationFromMap(lat, lon) {
+    setAddressLoading(true, 'Buscando endereço do ponto...');
+    hideError();
+
+    try {
+        await buscarEndereco(lat, lon);
+        showToast('Local selecionado no mapa.');
+    } finally {
+        setAddressLoading(false);
+    }
 }
 
 async function useCurrentLocation() {
@@ -411,16 +493,18 @@ async function useCurrentLocation() {
 
             try {
                 const data = await reverseGeocode(lat, lon);
-                updateSelectedLocation(lat, lon, data.display_name || `${lat}, ${lon}`);
+                updateSelectedLocation(lat, lon, data.display_name || 'Endereço não encontrado', {
+                    popupMessage: 'Localização atual'
+                });
                 setUserMarker(lat, lon, 'Localização atual');
-
-                if (map) {
-                    map.setView([lat, lon], USER_ZOOM);
-                }
 
                 showToast('Localização preenchida com sucesso.');
             } catch (error) {
-                showToast('Não foi possível converter sua localização em endereço.', true);
+                updateSelectedLocation(lat, lon, 'Endereço não encontrado', {
+                    popupMessage: 'Localização atual sem endereço associado'
+                });
+                setUserMarker(lat, lon, 'Localização atual');
+                showToast('Localização obtida, mas não foi possível converter em endereço.', true);
                 console.error('Erro reverse geocoding:', error);
             } finally {
                 setAddressLoading(false);
@@ -456,7 +540,7 @@ createForm.addEventListener('submit', async (event) => {
     if (!validCrimes.includes(tipo)) return showError('Tipo de crime inválido. Atualize a página e tente novamente.');
     if (!descricao) return showError('Descrição é obrigatória.');
     if (selectedLat === null || selectedLon === null) {
-        return showError('Selecione um endereço válido da lista');
+        return showError('Selecione um ponto no mapa, use sua localização ou escolha uma sugestão de endereço.');
     }
 
     const payload = {
