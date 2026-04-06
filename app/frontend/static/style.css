@@ -407,11 +407,15 @@ main {
     height: 500px;
     width: 100%;
     position: relative;
-    z-index: 1;
+    z-index: 10;
     pointer-events: auto;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-light);
     overflow: hidden;
+}
+
+.leaflet-container {
+    pointer-events: auto !important;
 }
 
 #map .leaflet-pane,
@@ -419,6 +423,16 @@ main {
 #map .leaflet-marker-icon,
 #map .leaflet-marker-shadow {
     pointer-events: auto;
+}
+
+#highlighter--hover-tools {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+div[style*="z-index: 9999"] {
+    pointer-events: none !important;
 }
 
 #create-form {
