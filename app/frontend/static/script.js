@@ -54,7 +54,11 @@ function showView(view) {
     if (view === 'map') {
         mapView.classList.remove('hidden');
         initMap();
-        if (map) map.invalidateSize();
+        if (map) {
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
+        }
         return;
     }
 
@@ -234,14 +238,16 @@ function initMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    map.dragging.enable();
+    map.touchZoom.enable();
+    map.doubleClickZoom.enable();
+    map.scrollWheelZoom.enable();
+
     map.on('click', async (event) => {
         const { lat, lng } = event.latlng;
+        console.log('Mapa clicado:', event.latlng);
         await selectLocationFromMap(lat, lng);
     });
-
-    map.touchZoom.enable();
-    map.scrollWheelZoom.enable();
-    map.doubleClickZoom.enable();
 
     renderMap();
 }
@@ -649,7 +655,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFloatingMenu();
     setupAddressAutocomplete();
     checkAPIStatus();
-    initMap();
     await initCrimeTypes();
     await loadDenuncias();
     setInterval(checkAPIStatus, 30000);

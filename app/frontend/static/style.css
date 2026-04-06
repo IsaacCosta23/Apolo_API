@@ -405,9 +405,20 @@ main {
 
 #map {
     height: 500px;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-light);
     overflow: hidden;
+}
+
+#map .leaflet-pane,
+#map .leaflet-control,
+#map .leaflet-marker-icon,
+#map .leaflet-marker-shadow {
+    pointer-events: auto;
 }
 
 #create-form {
