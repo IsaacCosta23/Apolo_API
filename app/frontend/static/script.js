@@ -7,6 +7,37 @@ const DEFAULT_CENTER = { lat: -8.057, lng: -34.879 };
 const DEFAULT_ZOOM = 13;
 const USER_ZOOM = 15;
 const AUTOCOMPLETE_MIN_LENGTH = 3;
+const REQUEST_TIMEOUT_MS = 15000;
+const AREA_CLUSTER_RADIUS_METERS = 350;
+const AREA_BASE_RADIUS_METERS = 180;
+const AREA_RADIUS_STEP_METERS = 70;
+
+const RISK_LEVEL_STYLES = {
+    baixo: {
+        key: 'baixo',
+        label: 'Baixo',
+        color: '#38a169',
+        fillColor: '#38a169',
+        badgeClass: 'nivel-baixo',
+        areaColor: 'rgba(56, 161, 105, 0.28)'
+    },
+    medio: {
+        key: 'medio',
+        label: 'Médio',
+        color: '#d69e2e',
+        fillColor: '#d69e2e',
+        badgeClass: 'nivel-medio',
+        areaColor: 'rgba(214, 158, 46, 0.24)'
+    },
+    alto: {
+        key: 'alto',
+        label: 'Alto',
+        color: '#e53e3e',
+        fillColor: '#e53e3e',
+        badgeClass: 'nivel-alto',
+        areaColor: 'rgba(229, 62, 62, 0.22)'
+    }
+};
 
 let map;
 let selectedMarker;
@@ -15,6 +46,8 @@ let validCrimes = [];
 let selectedLat = null;
 let selectedLon = null;
 let autocompleteController = null;
+let pointLayerGroup;
+let areaLayerGroup;
 
 const apiStatus = document.getElementById('api-status');
 const loading = document.getElementById('loading');
@@ -55,9 +88,7 @@ function showView(view) {
         mapView.classList.remove('hidden');
         initMap();
         if (map) {
-            setTimeout(() => {
-                map.invalidateSize();
-            }, 100);
+            setTimeout(() => map.invalidateSize(), 100);
         }
         return;
     }
@@ -73,37 +104,196 @@ function debounce(callback, delay = 300) {
     };
 }
 
+function createRequestTimeoutSignal(timeoutMs = REQUEST_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    return {
+        signal: controller.signal,
+        cleanup: () => clearTimeout(timeoutId)
+    };
+}
+
 async function fetchJSON(url, options = {}) {
-    const response = await fetch(url, options);
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Erro de rede');
-    }
-
-    if (response.status === 204 || response.status === 205) {
-        return null;
-    }
-
-    const text = await response.text();
-    if (!text) {
-        return null;
-    }
+    const { signal: timeoutSignal, cleanup } = createRequestTimeoutSignal(options.timeoutMs);
+    const headers = {
+        Accept: 'application/json',
+        ...options.headers
+    };
 
     try {
-        return JSON.parse(text);
+        const response = await fetch(url, {
+            ...options,
+            headers,
+            signal: options.signal || timeoutSignal
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        const isJSON = contentType.includes('application/json');
+        const payload = response.status === 204 || response.status === 205
+            ? null
+            : isJSON
+                ? await response.json().catch(() => null)
+                : await response.text();
+
+        if (!response.ok) {
+            throw new Error(extractErrorMessage(payload) || `Erro HTTP ${response.status}`);
+        }
+
+        if (payload === '' || payload === null || payload === undefined) {
+            return null;
+        }
+
+        return payload;
     } catch (error) {
-        console.warn('fetchJSON: resposta sem JSON válido', error);
-        return null;
+        if (error.name === 'AbortError') {
+            throw new Error('A requisição demorou demais para responder.');
+        }
+        throw error;
+    } finally {
+        cleanup();
     }
+}
+
+function extractErrorMessage(payload) {
+    if (!payload) {
+        return '';
+    }
+
+    if (typeof payload === 'string') {
+        return payload.trim();
+    }
+
+    if (typeof payload.detail === 'string') {
+        return payload.detail.trim();
+    }
+
+    if (Array.isArray(payload.detail)) {
+        return payload.detail
+            .map((item) => item?.msg || JSON.stringify(item))
+            .filter(Boolean)
+            .join(' | ');
+    }
+
+    return '';
+}
+
+function normalizeText(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+function getRiskLevelStyle(nivel) {
+    const normalizedLevel = normalizeText(nivel);
+
+    if (normalizedLevel === 'baixo') {
+        return RISK_LEVEL_STYLES.baixo;
+    }
+
+    if (normalizedLevel === 'medio' || normalizedLevel === 'mediana') {
+        return RISK_LEVEL_STYLES.medio;
+    }
+
+    if (normalizedLevel === 'alto' || normalizedLevel === 'maximo' || normalizedLevel === 'maxima') {
+        return RISK_LEVEL_STYLES.alto;
+    }
+
+    return RISK_LEVEL_STYLES.medio;
+}
+
+function getRiskWeight(nivel) {
+    const riskKey = getRiskLevelStyle(nivel).key;
+
+    if (riskKey === 'alto') {
+        return 3;
+    }
+
+    if (riskKey === 'medio') {
+        return 2;
+    }
+
+    return 1;
+}
+
+function getDenunciaViewModel(denuncia) {
+    const risk = getRiskLevelStyle(denuncia.nivel_periculosidade);
+    const latitude = Number(denuncia.latitude);
+    const longitude = Number(denuncia.longitude);
+
+    return {
+        ...denuncia,
+        latitude,
+        longitude,
+        risk,
+        formattedDate: formatDate(denuncia.data_hora),
+        locationLabel: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+    };
+}
+
+function formatDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return 'Data indisponível';
+    }
+
+    return date.toLocaleString('pt-BR');
+}
+
+function escapeHTML(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function buildRiskBadgeHTML(risk) {
+    return `<span class="nivel-periculosidade ${risk.badgeClass}">${risk.label}</span>`;
+}
+
+function buildDenunciaPopupContent(denuncia) {
+    return `
+        <div class="map-popup">
+            <strong>${escapeHTML(denuncia.tipo)}</strong>
+            <p>${escapeHTML(denuncia.descricao)}</p>
+            <div class="popup-meta">
+                ${buildRiskBadgeHTML(denuncia.risk)}
+                <span>${escapeHTML(denuncia.formattedDate)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function buildAreaPopupContent(group) {
+    const risk = group.risk;
+    const crimesPreview = group.denuncias
+        .slice(0, 4)
+        .map((denuncia) => escapeHTML(denuncia.tipo))
+        .join(', ');
+    const remainingCount = group.denuncias.length - 4;
+    const subtitle = remainingCount > 0
+        ? `${crimesPreview} e mais ${remainingCount}`
+        : crimesPreview;
+
+    return `
+        <div class="map-popup">
+            <strong>Zona com maior incidência</strong>
+            <p>${escapeHTML(subtitle || 'Múltiplas ocorrências próximas')}</p>
+            <div class="popup-meta">
+                ${buildRiskBadgeHTML(risk)}
+                <span>${group.denuncias.length} denúncia(s) próximas</span>
+            </div>
+        </div>
+    `;
 }
 
 async function checkAPIStatus() {
     try {
-        const response = await fetch(`${API_BASE}/`);
-        if (!response.ok) {
-            throw new Error('API indisponível');
-        }
-
+        await fetchJSON(`${API_BASE}/`, { timeoutMs: 8000 });
         apiStatus.textContent = 'API Online';
         apiStatus.style.color = '#48bb78';
     } catch (error) {
@@ -120,7 +310,7 @@ async function initCrimeTypes() {
     try {
         const crimes = await fetchJSON(`${API_BASE}${CRIMES_ENDPOINT}`);
         if (!Array.isArray(crimes) || crimes.length === 0) {
-            throw new Error('Resposta inválida de tipos de crime');
+            throw new Error('Resposta inválida de tipos de crime.');
         }
 
         validCrimes = crimes;
@@ -150,11 +340,12 @@ async function loadDenuncias() {
     hideError();
 
     try {
-        denuncias = await fetchJSON(`${API_BASE}${DENUNCIAS_ENDPOINT}`);
+        const data = await fetchJSON(`${API_BASE}${DENUNCIAS_ENDPOINT}`);
+        denuncias = Array.isArray(data) ? data.map(getDenunciaViewModel) : [];
         renderList();
         renderMap();
     } catch (error) {
-        showError('Erro ao carregar denúncias. Confira a conexão ou a API.');
+        showError(`Erro ao carregar denúncias: ${error.message}`);
         console.error('Erro loadDenuncias:', error);
     } finally {
         showLoading(false);
@@ -164,15 +355,23 @@ async function loadDenuncias() {
 function renderList() {
     denunciasList.innerHTML = '';
 
+    if (!denuncias.length) {
+        const emptyState = document.createElement('li');
+        emptyState.className = 'denuncia-item denuncia-item-empty';
+        emptyState.innerHTML = '<p>Nenhuma denúncia cadastrada até o momento.</p>';
+        denunciasList.appendChild(emptyState);
+        return;
+    }
+
     denuncias.forEach((denuncia) => {
         const li = document.createElement('li');
-        li.className = 'denuncia-item';
+        li.className = `denuncia-item denuncia-item-${denuncia.risk.key}`;
         li.innerHTML = `
-            <h3>${denuncia.tipo}</h3>
-            <p>${denuncia.descricao}</p>
-            <p>Local: ${denuncia.latitude.toFixed(6)}, ${denuncia.longitude.toFixed(6)}</p>
-            <p>Data: ${new Date(denuncia.data_hora).toLocaleString()}</p>
-            <span class="nivel-periculosidade nivel-${denuncia.nivel_periculosidade.toLowerCase()}">${denuncia.nivel_periculosidade}</span>
+            <h3>${escapeHTML(denuncia.tipo)}</h3>
+            <p>${escapeHTML(denuncia.descricao)}</p>
+            <p>Local: ${escapeHTML(denuncia.locationLabel)}</p>
+            <p>Data: ${escapeHTML(denuncia.formattedDate)}</p>
+            ${buildRiskBadgeHTML(denuncia.risk)}
             <button class="delete-btn" data-id="${denuncia.id}">Deletar</button>
         `;
         denunciasList.appendChild(li);
@@ -185,53 +384,131 @@ function renderList() {
     });
 }
 
-function renderMap() {
-    if (!map) return;
+function ensureMapLayers() {
+    if (!map) {
+        return;
+    }
 
-    map.eachLayer((layer) => {
-        if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
-            map.removeLayer(layer);
-        }
-    });
+    if (!areaLayerGroup) {
+        areaLayerGroup = L.layerGroup().addTo(map);
+    }
+
+    if (!pointLayerGroup) {
+        pointLayerGroup = L.layerGroup().addTo(map);
+    }
+}
+
+function renderMap() {
+    if (!map) {
+        return;
+    }
+
+    ensureMapLayers();
+    areaLayerGroup.clearLayers();
+    pointLayerGroup.clearLayers();
+
+    renderHeatAreas(denuncias);
+    renderDenunciaPoints(denuncias);
 
     if (selectedMarker) {
         selectedMarker.addTo(map);
     }
+}
 
-    denuncias.forEach((denuncia) => {
-        const color = getColor(denuncia.nivel_periculosidade);
+function renderDenunciaPoints(items) {
+    items.forEach((denuncia) => {
         const marker = L.circleMarker([denuncia.latitude, denuncia.longitude], {
-            color,
-            fillColor: color,
-            fillOpacity: 0.7,
-            radius: 7
-        }).addTo(map);
+            color: denuncia.risk.color,
+            fillColor: denuncia.risk.fillColor,
+            fillOpacity: 0.88,
+            radius: 7,
+            weight: 2
+        });
 
-        marker.bindPopup(`
-            <strong>${denuncia.tipo}</strong><br>
-            ${denuncia.descricao}<br>
-            Periculosidade: ${denuncia.nivel_periculosidade}
-        `);
+        marker.bindPopup(buildDenunciaPopupContent(denuncia));
+        pointLayerGroup.addLayer(marker);
     });
 }
 
-function getColor(nivel) {
-    switch (nivel.toLowerCase()) {
-        case 'baixo':
-            return '#48bb78';
-        case 'medio':
-            return '#ed8936';
-        case 'alto':
-            return '#e34747';
-        case 'máximo':
-            return '#ff0000';
-        default:
-            return '#f3f626';
+function renderHeatAreas(items) {
+    const groups = buildHeatGroups(items);
+
+    groups.forEach((group) => {
+        const radius = AREA_BASE_RADIUS_METERS + ((group.denuncias.length - 1) * AREA_RADIUS_STEP_METERS);
+        const circle = L.circle([group.center.lat, group.center.lng], {
+            radius,
+            color: group.risk.color,
+            weight: 1,
+            opacity: 0.45,
+            fillColor: group.risk.fillColor,
+            fillOpacity: Math.min(0.18 + (group.denuncias.length * 0.03), 0.34),
+            interactive: true
+        });
+
+        circle.bindPopup(buildAreaPopupContent(group));
+        areaLayerGroup.addLayer(circle);
+    });
+}
+
+function buildHeatGroups(items) {
+    const groups = [];
+
+    items.forEach((denuncia) => {
+        const existingGroup = groups.find((group) => {
+            const groupCenter = L.latLng(group.center.lat, group.center.lng);
+            const point = L.latLng(denuncia.latitude, denuncia.longitude);
+            return groupCenter.distanceTo(point) <= AREA_CLUSTER_RADIUS_METERS;
+        });
+
+        if (existingGroup) {
+            existingGroup.denuncias.push(denuncia);
+            existingGroup.center = calculateGroupCenter(existingGroup.denuncias);
+            existingGroup.risk = getGroupRisk(existingGroup.denuncias);
+            return;
+        }
+
+        groups.push({
+            center: { lat: denuncia.latitude, lng: denuncia.longitude },
+            denuncias: [denuncia],
+            risk: denuncia.risk
+        });
+    });
+
+    return groups.filter((group) => group.denuncias.length > 1);
+}
+
+function calculateGroupCenter(items) {
+    const totals = items.reduce((accumulator, denuncia) => {
+        accumulator.lat += denuncia.latitude;
+        accumulator.lng += denuncia.longitude;
+        return accumulator;
+    }, { lat: 0, lng: 0 });
+
+    return {
+        lat: totals.lat / items.length,
+        lng: totals.lng / items.length
+    };
+}
+
+function getGroupRisk(items) {
+    const totalWeight = items.reduce((sum, denuncia) => sum + getRiskWeight(denuncia.risk.key), 0);
+    const averageWeight = totalWeight / items.length;
+
+    if (averageWeight >= 2.5) {
+        return RISK_LEVEL_STYLES.alto;
     }
+
+    if (averageWeight >= 1.5) {
+        return RISK_LEVEL_STYLES.medio;
+    }
+
+    return RISK_LEVEL_STYLES.baixo;
 }
 
 function initMap() {
-    if (map) return;
+    if (map) {
+        return;
+    }
 
     map = L.map('map', {
         dragging: true,
@@ -242,24 +519,15 @@ function initMap() {
         keyboard: true,
         zoomControl: true
     }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_ZOOM);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    map.dragging.enable();
-    map.touchZoom.enable();
-    map.doubleClickZoom.enable();
-    map.scrollWheelZoom.enable();
-    map.boxZoom.enable();
-    map.keyboard.enable();
-
-    if (map.tap) {
-        map.tap.enable();
-    }
+    ensureMapLayers();
 
     map.on('click', async (event) => {
         const { lat, lng } = event.latlng;
-        console.log('Mapa clicado:', event.latlng);
         await selectLocationFromMap(lat, lng);
     });
 
@@ -267,7 +535,9 @@ function initMap() {
 }
 
 function setSelectedMarker(lat, lon, message = 'Ponto selecionado para a denúncia') {
-    if (!map) return;
+    if (!map) {
+        return;
+    }
 
     if (selectedMarker) {
         selectedMarker.setLatLng([lat, lon]);
@@ -279,7 +549,9 @@ function setSelectedMarker(lat, lon, message = 'Ponto selecionado para a denúnc
 }
 
 function clearSelectedMarker() {
-    if (!map || !selectedMarker) return;
+    if (!map || !selectedMarker) {
+        return;
+    }
 
     map.removeLayer(selectedMarker);
     selectedMarker = null;
@@ -354,8 +626,8 @@ function renderSuggestions(suggestions) {
 
         suggestion.className = 'sugestao-item';
         suggestion.innerHTML = `
-            <span class="sugestao-principal">${streetName}</span>
-            <span class="sugestao-secundaria">${neighborhood} • ${city}</span>
+            <span class="sugestao-principal">${escapeHTML(streetName)}</span>
+            <span class="sugestao-secundaria">${escapeHTML(neighborhood)} • ${escapeHTML(city)}</span>
         `;
 
         suggestion.addEventListener('click', () => {
@@ -393,7 +665,7 @@ async function fetchAddressSuggestions(query) {
     });
 
     if (!response.ok) {
-        throw new Error('Falha ao buscar endereços');
+        throw new Error('Falha ao buscar endereços.');
     }
 
     return response.json();
@@ -441,7 +713,7 @@ async function reverseGeocode(lat, lon) {
     });
 
     if (!response.ok) {
-        throw new Error('Falha ao obter endereço da localização');
+        throw new Error('Falha ao obter endereço da localização.');
     }
 
     return response.json();
@@ -538,10 +810,19 @@ createForm.addEventListener('submit', async (event) => {
     const descricao = document.getElementById('descricao').value.trim();
     const anonimo = document.getElementById('anonimo').checked;
 
-    if (!tipo) return showError('Escolha um tipo de crime válido.');
-    if (!validCrimes.includes(tipo)) return showError('Tipo de crime inválido. Atualize a página e tente novamente.');
-    if (!descricao) return showError('Descrição é obrigatória.');
-    if (selectedLat === null || selectedLon === null) {
+    if (!tipo) {
+        return showError('Escolha um tipo de crime válido.');
+    }
+
+    if (!validCrimes.includes(tipo)) {
+        return showError('Tipo de crime inválido. Atualize a página e tente novamente.');
+    }
+
+    if (!descricao) {
+        return showError('Descrição é obrigatória.');
+    }
+
+    if (selectedLat === null || selectedLon === null || Number.isNaN(selectedLat) || Number.isNaN(selectedLon)) {
         return showError('Selecione um ponto no mapa, use sua localização ou escolha uma sugestão de endereço.');
     }
 
@@ -570,7 +851,7 @@ createForm.addEventListener('submit', async (event) => {
         await loadDenuncias();
         showView('list');
     } catch (error) {
-        showError('Erro ao criar denúncia: ' + error.message);
+        showError(`Erro ao criar denúncia: ${error.message}`);
         console.error('Erro ao enviar denúncia:', error);
     } finally {
         showLoading(false);
@@ -578,7 +859,9 @@ createForm.addEventListener('submit', async (event) => {
 });
 
 async function deleteDenuncia(id) {
-    if (!confirm('Tem certeza que deseja deletar esta denúncia?')) return;
+    if (!confirm('Tem certeza que deseja deletar esta denúncia?')) {
+        return;
+    }
 
     showLoading(true);
     hideError();
@@ -588,7 +871,7 @@ async function deleteDenuncia(id) {
         showToast('Denúncia deletada com sucesso!');
         await loadDenuncias();
     } catch (error) {
-        showError('Erro ao deletar denúncia: ' + error.message);
+        showError(`Erro ao deletar denúncia: ${error.message}`);
         console.error('Erro deleteDenuncia:', error);
     } finally {
         showLoading(false);
