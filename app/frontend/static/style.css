@@ -435,6 +435,10 @@ main {
     pointer-events: auto !important;
 }
 
+.leaflet-heatmap-layer {
+    pointer-events: none;
+}
+
 .map-popup {
     min-width: 180px;
 }
