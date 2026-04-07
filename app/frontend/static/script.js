@@ -8,9 +8,10 @@ const DEFAULT_ZOOM = 13;
 const USER_ZOOM = 15;
 const AUTOCOMPLETE_MIN_LENGTH = 3;
 const REQUEST_TIMEOUT_MS = 15000;
-const HEAT_RADIUS = 30;
-const HEAT_BLUR = 25;
+const HEAT_RADIUS = 50;
+const HEAT_BLUR = 35;
 const HEAT_MAX_ZOOM = 18;
+const HEAT_MIN_OPACITY = 0.3;
 
 const RISK_LEVEL_STYLES = {
     baixo: {
@@ -242,7 +243,52 @@ function getHeatWeight(denuncia) {
         pesoBase += 0.1;
     }
 
-    return Math.min(pesoBase, 1.5);
+    return Math.min(pesoBase * 1.5, 1.5);
+}
+
+function getHeatRadius() {
+    if (!map) {
+        return HEAT_RADIUS;
+    }
+
+    const zoom = map.getZoom();
+
+    if (zoom >= 17) {
+        return 40;
+    }
+
+    if (zoom >= 15) {
+        return 50;
+    }
+
+    if (zoom >= 13) {
+        return 60;
+    }
+
+    return 70;
+}
+
+function getHeatBlur(radius = getHeatRadius()) {
+    if (!map) {
+        return HEAT_BLUR;
+    }
+
+    return Math.round(radius * 0.7);
+}
+
+function updateHeatLayerAppearance() {
+    if (!heatLayer) {
+        return;
+    }
+
+    const radius = getHeatRadius();
+    const blur = getHeatBlur(radius);
+
+    heatLayer.setOptions({
+        radius,
+        blur,
+        minOpacity: HEAT_MIN_OPACITY
+    });
 }
 
 function getDenunciaViewModel(denuncia) {
@@ -497,10 +543,14 @@ function renderHeatMap(items) {
         return;
     }
 
+    const radius = getHeatRadius();
+    const blur = getHeatBlur(radius);
+
     heatLayer = L.heatLayer(heatData, {
-        radius: HEAT_RADIUS,
-        blur: HEAT_BLUR,
+        radius,
+        blur,
         maxZoom: HEAT_MAX_ZOOM,
+        minOpacity: HEAT_MIN_OPACITY,
         pane: 'heatPane'
     }).addTo(map);
 }
@@ -529,6 +579,10 @@ function initMap() {
     map.on('click', async (event) => {
         const { lat, lng } = event.latlng;
         await selectLocationFromMap(lat, lng);
+    });
+
+    map.on('zoomend', () => {
+        updateHeatLayerAppearance();
     });
 
     renderMap();
