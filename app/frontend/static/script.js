@@ -8,9 +8,8 @@ const DEFAULT_ZOOM = 13;
 const USER_ZOOM = 15;
 const AUTOCOMPLETE_MIN_LENGTH = 3;
 const REQUEST_TIMEOUT_MS = 15000;
-const AREA_CLUSTER_RADIUS_METERS = 350;
-const AREA_BASE_RADIUS_METERS = 180;
-const AREA_RADIUS_STEP_METERS = 70;
+const HEAT_PROXIMITY_METERS = 300;
+const ENABLE_HEAT_DEBUG_TEST = false;
 
 const RISK_LEVEL_STYLES = {
     baixo: {
@@ -48,6 +47,7 @@ let selectedLon = null;
 let autocompleteController = null;
 let pointLayerGroup;
 let areaLayerGroup;
+let debugLayerGroup;
 
 const apiStatus = document.getElementById('api-status');
 const loading = document.getElementById('loading');
@@ -389,6 +389,8 @@ function ensureMapLayers() {
         return;
     }
 
+    ensureMapPanes();
+
     if (!areaLayerGroup) {
         areaLayerGroup = L.layerGroup().addTo(map);
     }
@@ -396,6 +398,24 @@ function ensureMapLayers() {
     if (!pointLayerGroup) {
         pointLayerGroup = L.layerGroup().addTo(map);
     }
+
+    if (!debugLayerGroup) {
+        debugLayerGroup = L.layerGroup().addTo(map);
+    }
+}
+
+function ensureMapPanes() {
+    if (!map) {
+        return;
+    }
+
+    if (!map.getPane('heatPane')) {
+        map.createPane('heatPane');
+    }
+    map.getPane('heatPane').style.zIndex = '400';
+
+    const markerPane = map.getPane('markerPane') || map.createPane('markerPane');
+    markerPane.style.zIndex = '600';
 }
 
 function renderMap() {
@@ -406,9 +426,11 @@ function renderMap() {
     ensureMapLayers();
     areaLayerGroup.clearLayers();
     pointLayerGroup.clearLayers();
+    debugLayerGroup.clearLayers();
 
     renderHeatAreas(denuncias);
     renderDenunciaPoints(denuncias);
+    renderHeatDebugCircle();
 
     if (selectedMarker) {
         selectedMarker.addTo(map);
@@ -422,7 +444,8 @@ function renderDenunciaPoints(items) {
             fillColor: denuncia.risk.fillColor,
             fillOpacity: 0.88,
             radius: 7,
-            weight: 2
+            weight: 2,
+            pane: 'markerPane'
         });
 
         marker.bindPopup(buildDenunciaPopupContent(denuncia));
@@ -433,16 +456,20 @@ function renderDenunciaPoints(items) {
 function renderHeatAreas(items) {
     const groups = buildHeatGroups(items);
 
+    console.log('Heat groups gerados:', groups.length, groups.map((group) => group.denuncias.length));
+
     groups.forEach((group) => {
-        const radius = AREA_BASE_RADIUS_METERS + ((group.denuncias.length - 1) * AREA_RADIUS_STEP_METERS);
-        const circle = L.circle([group.center.lat, group.center.lng], {
+        const center = [group.center.lat, group.center.lng];
+        const radius = Math.max(200, group.denuncias.length * 120);
+        console.log('Grupo criado:', group.denuncias.length, center, radius);
+
+        const circle = L.circle(center, {
             radius,
             color: group.risk.color,
-            weight: 1,
-            opacity: 0.45,
             fillColor: group.risk.fillColor,
-            fillOpacity: Math.min(0.18 + (group.denuncias.length * 0.03), 0.34),
-            interactive: true
+            fillOpacity: 0.25,
+            weight: 1,
+            pane: 'heatPane'
         });
 
         circle.bindPopup(buildAreaPopupContent(group));
@@ -454,11 +481,7 @@ function buildHeatGroups(items) {
     const groups = [];
 
     items.forEach((denuncia) => {
-        const existingGroup = groups.find((group) => {
-            const groupCenter = L.latLng(group.center.lat, group.center.lng);
-            const point = L.latLng(denuncia.latitude, denuncia.longitude);
-            return groupCenter.distanceTo(point) <= AREA_CLUSTER_RADIUS_METERS;
-        });
+        const existingGroup = groups.find((group) => isNear(group.center, denuncia));
 
         if (existingGroup) {
             existingGroup.denuncias.push(denuncia);
@@ -474,7 +497,20 @@ function buildHeatGroups(items) {
         });
     });
 
-    return groups.filter((group) => group.denuncias.length > 1);
+    const filteredGroups = groups.filter((group) => group.denuncias.length > 1);
+    filteredGroups.forEach((group) => {
+        console.log('Grupo validado:', group.denuncias.length, group.center);
+    });
+
+    return filteredGroups;
+}
+
+function isNear(a, b) {
+    if (!map) {
+        return false;
+    }
+
+    return map.distance([a.lat, a.lng], [b.latitude ?? b.lat, b.longitude ?? b.lng]) < HEAT_PROXIMITY_METERS;
 }
 
 function calculateGroupCenter(items) {
@@ -524,6 +560,7 @@ function initMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    ensureMapPanes();
     ensureMapLayers();
 
     map.on('click', async (event) => {
@@ -545,7 +582,27 @@ function setSelectedMarker(lat, lon, message = 'Ponto selecionado para a denúnc
         return;
     }
 
-    selectedMarker = L.marker([lat, lon]).addTo(map).bindPopup(message);
+    selectedMarker = L.marker([lat, lon], {
+        pane: 'markerPane'
+    }).addTo(map).bindPopup(message);
+}
+
+function renderHeatDebugCircle() {
+    if (!map || !ENABLE_HEAT_DEBUG_TEST) {
+        return;
+    }
+
+    const testCircle = L.circle([-8.0476, -34.8770], {
+        radius: 500,
+        color: 'red',
+        fillColor: 'red',
+        fillOpacity: 0.3,
+        weight: 1,
+        pane: 'heatPane'
+    });
+
+    console.log('Heat debug circle ativo:', [-8.0476, -34.8770], 500);
+    debugLayerGroup.addLayer(testCircle);
 }
 
 function clearSelectedMarker() {
