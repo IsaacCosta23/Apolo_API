@@ -1,5 +1,6 @@
 .env
 .venv/
+.env.*.swp
 __pycache__/
 *.pyc
 *.db
@@ -10,4 +11,5 @@ app/core/config.py
 apolo_codex.db
 start-server.bat
 stop-server.bat
-apolo_codex.db
+filter-secrets.ps1
+.refs/
