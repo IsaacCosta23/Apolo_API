@@ -12,3 +12,4 @@ start-server.bat
 stop-server.bat
 filter-secrets.ps1
 .refs/
+app/__pycache__/main.cpython-314.pyc
