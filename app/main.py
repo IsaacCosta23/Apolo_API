@@ -66,10 +66,17 @@ async def read_root():
 
 @app.get("/config.js", include_in_schema=False)
 async def frontend_config():
+    mapbox_token = settings["mapbox_token"]
+    
+    # Debug logging
+    logger.info(f"Frontend config requested - MAPBOX_TOKEN exists: {bool(mapbox_token)}, length: {len(mapbox_token) if mapbox_token else 0}")
+    if not mapbox_token:
+        logger.warning("⚠️ MAPBOX_TOKEN is empty! Check environment variables.")
+    
     return Response(
         content=(
             'window.APP_CONFIG = { '
-            f'MAPBOX_TOKEN: {json.dumps(settings["mapbox_token"])}, '
+            f'MAPBOX_TOKEN: {json.dumps(mapbox_token)}, '
             f'API_BASE: {json.dumps(settings["frontend_api_base"])} '
             '};'
         ),

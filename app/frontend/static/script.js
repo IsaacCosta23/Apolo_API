@@ -11,7 +11,20 @@ const REQUEST_TIMEOUT_MS = 15000;
 const HEAT_MIN_OPACITY = 1;
 const HEAT_INTENSITY = 1.5;
 const MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12';
-const MAPBOX_TOKEN = window.APP_CONFIG?.MAPBOX_TOKEN || 'MAPBOX_TOKEN';
+
+// Enhanced token handling with debugging
+const MAPBOX_TOKEN = (() => {
+    const token = window.APP_CONFIG?.MAPBOX_TOKEN;
+    console.log('🗺️ Mapbox Token Debug:', {
+        from_config: token,
+        token_exists: !!token,
+        token_length: token?.length || 0,
+        is_valid_format: token && token.startsWith('pk.eyJ1'),
+        config_object: window.APP_CONFIG
+    });
+    return token || '';
+})();
+
 const MAP_SOURCE_ID = 'crimes';
 const HEAT_LAYER_ID = 'crimes-heat';
 const CIRCLE_LAYER_ID = 'crimes-circle';
@@ -676,8 +689,36 @@ function renderMap() {
 }
 
 function validateMapboxToken() {
-    if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'MAPBOX_TOKEN') {
-        showError('Configure a variável de ambiente MAPBOX_TOKEN para carregar o mapa Mapbox.');
+    const isEmpty = !MAPBOX_TOKEN || MAPBOX_TOKEN.trim() === '';
+    const isPlaceholder = MAPBOX_TOKEN === 'MAPBOX_TOKEN' || MAPBOX_TOKEN === 'your_mapbox_token_here';
+    
+    if (isEmpty) {
+        const errorMsg = '❌ MAPBOX_TOKEN não configurado!\n\n' +
+            '📋 Para produção:\n' +
+            '1. Obtenha um token em https://account.mapbox.com/\n' +
+            '2. Configure como variável de ambiente no seu servidor\n' +
+            '3. Reinicie a aplicação\n\n' +
+            '💡 Debug: window.APP_CONFIG.MAPBOX_TOKEN = ' + JSON.stringify(MAPBOX_TOKEN);
+        console.error(errorMsg);
+        showError(errorMsg);
+        return false;
+    }
+    
+    if (isPlaceholder) {
+        const errorMsg = '❌ MAPBOX_TOKEN ainda é um placeholder!\n\n' +
+            'Substitua o valor no arquivo .env:\n' +
+            'MAPBOX_TOKEN=pk.eyJ1... (seu token real)';
+        console.error(errorMsg);
+        showError(errorMsg);
+        return false;
+    }
+    
+    if (!MAPBOX_TOKEN.startsWith('pk.eyJ1')) {
+        const errorMsg = '❌ MAPBOX_TOKEN em formato inválido!\n\n' +
+            'Token válido começa com "pk.eyJ1"\n' +
+            'Token recebido: ' + MAPBOX_TOKEN.substring(0, 20) + '...';
+        console.error(errorMsg);
+        showError(errorMsg);
         return false;
     }
 

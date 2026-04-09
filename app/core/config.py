@@ -49,6 +49,17 @@ def get_settings() -> dict:
     database_url = _normalize_database_url(
         os.getenv("DATABASE_URL", "sqlite:///./apolo_codex.db")
     )
+    
+    mapbox_token = os.getenv("MAPBOX_TOKEN", "")
+    
+    # Debug logging for deployment
+    if is_production or environment == "staging":
+        import sys
+        print(f"[CONFIG_DEBUG] Environment: {environment}", file=sys.stderr)
+        print(f"[CONFIG_DEBUG] MAPBOX_TOKEN configured: {bool(mapbox_token)}", file=sys.stderr)
+        print(f"[CONFIG_DEBUG] MAPBOX_TOKEN length: {len(mapbox_token) if mapbox_token else 0}", file=sys.stderr)
+        if mapbox_token:
+            print(f"[CONFIG_DEBUG] MAPBOX_TOKEN starts with pk.eyJ1: {mapbox_token.startswith('pk.eyJ1')}", file=sys.stderr)
 
     return {
         "app_name": "Apolo CodexAI API",
@@ -56,7 +67,7 @@ def get_settings() -> dict:
         "is_production": is_production,
         "database_url": database_url,
         "port": int(os.getenv("PORT", "8000")),
-        "mapbox_token": os.getenv("MAPBOX_TOKEN", ""),
+        "mapbox_token": mapbox_token,
         "frontend_api_base": os.getenv("FRONTEND_API_BASE", ""),
         "cors_origins": _parse_origins(os.getenv("CORS_ORIGINS")),
     }
