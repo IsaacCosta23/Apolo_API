@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 class DenunciaCreate(BaseModel):
@@ -19,5 +19,4 @@ class DenunciaResponse(BaseModel):
     data_hora: datetime
     nivel_periculosidade: str
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

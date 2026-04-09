@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import Denuncia
 from app.services.denuncia_builder import DenunciaBuilder
 from app.services.denuncia_repository import DenunciaRepository
 from app.services.processador_crime_factory import ProcessadorCrimeFactory
+
+logger = logging.getLogger("apolo.denuncia_service")
 
 
 def _build_denuncia(payload: dict) -> Denuncia:
@@ -56,7 +60,7 @@ def criar_denuncia(payload: dict, db: Session) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Erro interno ao criar denúncia: {e}")
+        logger.exception("Erro interno ao criar denúncia", exc_info=e)
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 

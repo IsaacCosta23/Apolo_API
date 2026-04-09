@@ -90,8 +90,8 @@ O mapa de calor não existe apenas para “mostrar pontos”. Ele existe para **
 - Remoção de denúncias.
 - Classificação de periculosidade por tipo de crime.
 - Exposição de tipos de crime válidos para integração com frontend.
-- Interface web com mapa interativo em Leaflet.
-- Heatmap com `Leaflet.heat` para destacar áreas de influência e concentração de ocorrências.
+- Interface web com mapa interativo em Mapbox GL JS.
+- Heatmap nativo com Mapbox para destacar áreas de influência e concentração de ocorrências.
 
 ---
 
@@ -111,8 +111,7 @@ O mapa de calor não existe apenas para “mostrar pontos”. Ele existe para **
 - **HTML**
 - **CSS**
 - **JavaScript**
-- **Leaflet**
-- **Leaflet.heat**
+- **Mapbox GL JS**
 
 ---
 
@@ -261,17 +260,39 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 4. Executar a aplicação
+### 4. Configurar ambiente local
+
+```bash
+copy .env.example .env
+```
+
+Edite o `.env` local com seus valores reais.
+
+### 5. Executar a aplicação
+
+Windows:
+
+```bash
+start-server.bat
+```
+
+Manual:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-### 5. Acessar no navegador
+### 6. Acessar no navegador
 
 - Aplicação web: `http://127.0.0.1:8000/`
 - Documentação automática: `http://127.0.0.1:8000/docs`
 - Redoc: `http://127.0.0.1:8000/redoc`
+
+### 7. Encerrar o servidor local
+
+```bash
+stop-server.bat
+```
 
 ---
 
@@ -294,7 +315,7 @@ Essa estrutura foi pensada para ser simples no MVP e flexível para expansões f
 
 ## Visualização com mapa e heatmap
 
-O projeto utiliza **Leaflet** para o mapa interativo e **Leaflet.heat** para o mapa de calor.
+O projeto utiliza **Mapbox GL JS** para o mapa interativo e heatmap nativo para a visualização de concentração.
 
 Essa escolha foi importante porque a proposta do projeto não é apenas armazenar denúncias, mas também:
 
@@ -325,7 +346,7 @@ Este projeto foi estruturado para crescer. Algumas melhorias futuras possíveis:
 
 - autenticação e perfis de usuário;
 - filtros por período, tipo de crime e região;
-- integração com PostgreSQL em produção;
+- integração com PostgreSQL em produção no Render;
 - geração avançada de mapas de calor;
 - alertas em tempo real;
 - clusterização geográfica;

@@ -1,15 +1,18 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Ajuste seguro com fallback local para desenvolvimento
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./apolo_codex.db")
+from app.core.config import get_settings
 
-# Para PostgreSQL não precisamos de check_same_thread
-# para SQLite mantemos como fallback local (dev only)
+settings = get_settings()
+DATABASE_URL = settings["database_url"]
+is_production = settings["is_production"]
+
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+elif DATABASE_URL.startswith("postgresql"):
+    # Render exige SSL em produção; localmente mantemos configuração simples.
+    connect_args = {"sslmode": "require"} if is_production else {}
 
 engine = create_engine(
     DATABASE_URL,

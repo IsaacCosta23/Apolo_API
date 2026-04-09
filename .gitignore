@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.log
+local-server-2.err.log
+local-server-2.out.log
+app/core/config.py
+apolo_codex.db
+start-server.bat
+stop-server.bat
+apolo_codex.db

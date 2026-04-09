@@ -1,17 +1,21 @@
-const API_BASE = 'https://apolo-api-nd3u.onrender.com';
+const API_BASE = window.APP_CONFIG?.API_BASE || window.location.origin;
 const CRIMES_ENDPOINT = '/denuncias/tipos-crime';
 const DENUNCIAS_ENDPOINT = '/denuncias';
 const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
-const DEFAULT_CENTER = { lat: -8.057, lng: -34.879 };
+const DEFAULT_CENTER = { lat: -8.0476, lng: -34.8770 };
 const DEFAULT_ZOOM = 13;
 const USER_ZOOM = 15;
 const AUTOCOMPLETE_MIN_LENGTH = 3;
 const REQUEST_TIMEOUT_MS = 15000;
-const HEAT_RADIUS = 50;
-const HEAT_BLUR = 35;
-const HEAT_MAX_ZOOM = 18;
-const HEAT_MIN_OPACITY = 0.3;
+const HEAT_MIN_OPACITY = 1;
+const HEAT_INTENSITY = 1.5;
+const MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12';
+const MAPBOX_TOKEN = window.APP_CONFIG?.MAPBOX_TOKEN || 'MAPBOX_TOKEN';
+const MAP_SOURCE_ID = 'crimes';
+const HEAT_LAYER_ID = 'crimes-heat';
+const CIRCLE_LAYER_ID = 'crimes-circle';
+const DETAIL_VISIBILITY_ZOOM = 14;
 
 const RISK_LEVEL_STYLES = {
     baixo: {
@@ -41,15 +45,16 @@ const RISK_LEVEL_STYLES = {
 };
 
 let map;
-let selectedMarker;
+let selectedMarker = null;
+let userLocationMarker = null;
+let denunciaMarkers = [];
 let denuncias = [];
 let validCrimes = [];
 let selectedLat = null;
 let selectedLon = null;
 let autocompleteController = null;
-let pointLayerGroup;
-let heatLayer = null;
-
+let mapStyleReady = false;
+let currentPopup = null;
 const apiStatus = document.getElementById('api-status');
 const loading = document.getElementById('loading');
 const errorMessage = document.getElementById('error-message');
@@ -65,6 +70,7 @@ const enderecoInput = document.getElementById('endereco');
 const sugestoesList = document.getElementById('sugestoes');
 const addressLoading = document.getElementById('address-loading');
 const getLocationButton = document.getElementById('get-location');
+const locateUserMapButton = document.getElementById('btnLocateUser');
 const menuButton = document.getElementById('btn-menu');
 const linksDropdown = document.getElementById('links-dropdown');
 
@@ -89,7 +95,7 @@ function showView(view) {
         mapView.classList.remove('hidden');
         initMap();
         if (map) {
-            setTimeout(() => map.invalidateSize(), 100);
+            setTimeout(() => map.resize(), 100);
         }
         return;
     }
@@ -205,90 +211,26 @@ function getRiskLevelStyle(nivel) {
     return RISK_LEVEL_STYLES.medio;
 }
 
-function getRiskWeight(nivel) {
-    const riskKey = getRiskLevelStyle(nivel).key;
-
-    if (riskKey === 'alto') {
-        return 3;
-    }
-
-    if (riskKey === 'medio') {
-        return 2;
-    }
-
-    return 1;
-}
-
 function getHeatWeight(denuncia) {
     const nivel = normalizeText(denuncia.nivel_periculosidade || denuncia.nivel || '');
-    const tipo = normalizeText(denuncia.tipo || '');
 
-    let pesoBase = 0.5;
-
-    if (nivel.includes('baixo')) {
-        pesoBase = 0.3;
-    } else if (nivel.includes('medio')) {
-        pesoBase = 0.6;
-    } else if (nivel.includes('alto')) {
-        pesoBase = 1.0;
-    } else if (nivel.includes('max')) {
-        pesoBase = 1.2;
+    if (nivel === 'baixo') {
+        return 0.3;
     }
 
-    if (tipo.includes('roubo')) {
-        pesoBase += 0.2;
+    if (nivel === 'medio' || nivel === 'mediana') {
+        return 0.6;
     }
 
-    if (tipo.includes('agress')) {
-        pesoBase += 0.1;
+    if (nivel === 'alto') {
+        return 1;
     }
 
-    return Math.min(pesoBase * 1.5, 1.5);
-}
-
-function getHeatRadius() {
-    if (!map) {
-        return HEAT_RADIUS;
+    if (nivel === 'maximo' || nivel === 'maxima') {
+        return 1.5;
     }
 
-    const zoom = map.getZoom();
-
-    if (zoom >= 17) {
-        return 40;
-    }
-
-    if (zoom >= 15) {
-        return 50;
-    }
-
-    if (zoom >= 13) {
-        return 60;
-    }
-
-    return 70;
-}
-
-function getHeatBlur(radius = getHeatRadius()) {
-    if (!map) {
-        return HEAT_BLUR;
-    }
-
-    return Math.round(radius * 0.7);
-}
-
-function updateHeatLayerAppearance() {
-    if (!heatLayer) {
-        return;
-    }
-
-    const radius = getHeatRadius();
-    const blur = getHeatBlur(radius);
-
-    heatLayer.setOptions({
-        radius,
-        blur,
-        minOpacity: HEAT_MIN_OPACITY
-    });
+    return 0.5;
 }
 
 function getDenunciaViewModel(denuncia) {
@@ -341,32 +283,32 @@ function buildDenunciaPopupContent(denuncia) {
     `;
 }
 
-function buildAreaPopupContent(group) {
-    const risk = group.risk;
-    const crimesPreview = group.denuncias
-        .slice(0, 4)
-        .map((denuncia) => escapeHTML(denuncia.tipo))
-        .join(', ');
-    const remainingCount = group.denuncias.length - 4;
-    const subtitle = remainingCount > 0
-        ? `${crimesPreview} e mais ${remainingCount}`
-        : crimesPreview;
+function buildHeatGeoJSON(items) {
+    const features = items
+        .filter((denuncia) => Number.isFinite(denuncia.latitude) && Number.isFinite(denuncia.longitude))
+        .map((denuncia) => ({
+            type: 'Feature',
+            properties: {
+                id: denuncia.id,
+                peso: getHeatWeight(denuncia),
+                nivel: normalizeText(denuncia.nivel_periculosidade || denuncia.nivel || ''),
+                tipo: denuncia.tipo || ''
+            },
+            geometry: {
+                type: 'Point',
+                coordinates: [denuncia.longitude, denuncia.latitude]
+            }
+        }));
 
-    return `
-        <div class="map-popup">
-            <strong>Zona com maior incidência</strong>
-            <p>${escapeHTML(subtitle || 'Múltiplas ocorrências próximas')}</p>
-            <div class="popup-meta">
-                ${buildRiskBadgeHTML(risk)}
-                <span>${group.denuncias.length} denúncia(s) próximas</span>
-            </div>
-        </div>
-    `;
+    return {
+        type: 'FeatureCollection',
+        features
+    };
 }
 
 async function checkAPIStatus() {
     try {
-        await fetchJSON(`${API_BASE}/`, { timeoutMs: 8000 });
+        await fetchJSON(`${API_BASE}/api/health`, { timeoutMs: 8000 });
         apiStatus.textContent = 'API Online';
         apiStatus.style.color = '#48bb78';
     } catch (error) {
@@ -457,102 +399,289 @@ function renderList() {
     });
 }
 
-function ensureMapLayers() {
-    if (!map) {
-        return;
-    }
-
-    ensureMapPanes();
-
-    if (!pointLayerGroup) {
-        pointLayerGroup = L.layerGroup().addTo(map);
-    }
+function createPopup(htmlContent) {
+    return new mapboxgl.Popup({
+        offset: 20,
+        closeButton: true,
+        closeOnClick: false
+    }).setHTML(htmlContent);
 }
 
-function ensureMapPanes() {
+function createMarkerElement(color, className = '') {
+    const element = document.createElement('div');
+    element.className = `crime-marker ${className}`.trim();
+    element.style.backgroundColor = color;
+    return element;
+}
+
+function closeCurrentPopup() {
+    if (!currentPopup) {
+        return;
+    }
+
+    currentPopup.remove();
+    currentPopup = null;
+}
+
+function clearDenunciaMarkers() {
+    denunciaMarkers.forEach((marker) => marker.remove());
+    denunciaMarkers = [];
+}
+
+function updateMarkersVisibility() {
     if (!map) {
         return;
     }
 
-    if (!map.getPane('heatPane')) {
-        map.createPane('heatPane');
-    }
-    map.getPane('heatPane').style.zIndex = '200';
-    map.getPane('heatPane').style.pointerEvents = 'none';
+    const zoom = map.getZoom();
+    const shouldShowMarkers = zoom >= DETAIL_VISIBILITY_ZOOM;
 
-    const markerPane = map.getPane('markerPane') || map.createPane('markerPane');
-    markerPane.style.zIndex = '600';
+    denunciaMarkers.forEach((marker) => {
+        marker.getElement().style.display = shouldShowMarkers ? 'block' : 'none';
+    });
+}
+
+function isMapOverlayTarget(target) {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+
+    return Boolean(
+        target.closest('.crime-marker') ||
+        target.closest('.mapboxgl-popup') ||
+        target.closest('.mapboxgl-ctrl') ||
+        target.closest('.map-locate-button')
+    );
+}
+
+function renderDenunciaPoints(items) {
+    clearDenunciaMarkers();
+
+    items.forEach((denuncia) => {
+        const popup = createPopup(buildDenunciaPopupContent(denuncia));
+        const marker = new mapboxgl.Marker({
+            element: createMarkerElement(denuncia.risk.color),
+            anchor: 'center'
+        })
+            .setLngLat([denuncia.longitude, denuncia.latitude])
+            .setPopup(popup)
+            .addTo(map);
+
+        marker.getElement().addEventListener('click', (event) => {
+            event.stopPropagation();
+
+            if (currentPopup && currentPopup !== popup) {
+                closeCurrentPopup();
+            }
+
+            if (popup.isOpen()) {
+                closeCurrentPopup();
+                return;
+            }
+
+            popup.addTo(map);
+            currentPopup = popup;
+        });
+
+        popup.on('close', () => {
+            if (currentPopup === popup) {
+                currentPopup = null;
+            }
+        });
+
+        denunciaMarkers.push(marker);
+    });
+
+    updateMarkersVisibility();
+}
+
+function ensureHeatmapSource() {
+    if (!map || !mapStyleReady) {
+        return;
+    }
+
+    const geojsonData = buildHeatGeoJSON(denuncias);
+    const source = map.getSource(MAP_SOURCE_ID);
+
+    if (source) {
+        source.setData(geojsonData);
+        return;
+    }
+
+    map.addSource(MAP_SOURCE_ID, {
+        type: 'geojson',
+        data: geojsonData
+    });
+}
+
+function ensureHeatmapLayer() {
+    if (!map || !mapStyleReady || map.getLayer(HEAT_LAYER_ID) || !map.getSource(MAP_SOURCE_ID)) {
+        return;
+    }
+
+    map.addLayer({
+        id: HEAT_LAYER_ID,
+        type: 'heatmap',
+        source: MAP_SOURCE_ID,
+        maxzoom: 15,
+        paint: {
+            'heatmap-weight': [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['get', 'peso'], 0],
+                0, 0,
+                1, 1
+            ],
+            'heatmap-intensity': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                0, 1,
+                15, 3
+            ],
+            'heatmap-radius': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                0, 20,
+                15, 50
+            ],
+            'heatmap-opacity': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                13, 1,
+                15, 0
+            ],
+            'heatmap-color': [
+                'interpolate',
+                ['linear'],
+                ['heatmap-density'],
+                0, 'rgba(56, 161, 105, 0)',
+                0.15, 'rgba(56, 161, 105, 0.45)',
+                0.35, 'rgba(214, 158, 46, 0.6)',
+                0.6, 'rgba(245, 197, 24, 0.72)',
+                0.8, 'rgba(229, 62, 62, 0.84)',
+                1, 'rgba(153, 27, 27, 0.96)'
+            ]
+        }
+    });
+}
+
+function ensureRiskCircleLayer() {
+    if (!map || !mapStyleReady || map.getLayer(CIRCLE_LAYER_ID) || !map.getSource(MAP_SOURCE_ID)) {
+        return;
+    }
+
+    map.addLayer({
+        id: CIRCLE_LAYER_ID,
+        type: 'circle',
+        source: MAP_SOURCE_ID,
+        minzoom: 14,
+        paint: {
+            'circle-radius': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                14,
+                [
+                    'match',
+                    ['get', 'nivel'],
+                    'baixo', 15,
+                    'medio', 25,
+                    'alto', 35,
+                    'maximo', 50,
+                    20
+                ],
+                18,
+                [
+                    'match',
+                    ['get', 'nivel'],
+                    'baixo', 30,
+                    'medio', 45,
+                    'alto', 60,
+                    'maximo', 80,
+                    40
+                ]
+            ],
+            'circle-color': [
+                'match',
+                ['get', 'nivel'],
+                'baixo', '#00FF00',
+                'medio', '#FFFF00',
+                'alto', '#FF0000',
+                'maximo', '#8B0000',
+                '#FF0000'
+            ],
+            'circle-opacity': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                14, 0.2,
+                18, 0.4
+            ],
+            'circle-blur': 0.6
+        }
+    });
+}
+
+function updateHeatmapAppearance() {
+    if (!map || !map.getLayer(HEAT_LAYER_ID)) {
+        return;
+    }
+
+    map.setPaintProperty(HEAT_LAYER_ID, 'heatmap-opacity', [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        13, HEAT_MIN_OPACITY,
+        15, 0
+    ]);
+    map.setPaintProperty(HEAT_LAYER_ID, 'heatmap-radius', [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        0, 20,
+        15, 50
+    ]);
+}
+
+function renderHeatMap() {
+    if (!map || !mapStyleReady) {
+        return;
+    }
+
+    ensureHeatmapSource();
+    ensureHeatmapLayer();
+    ensureRiskCircleLayer();
+    updateHeatmapAppearance();
 }
 
 function renderMap() {
-    if (!map) {
+    if (!map || !mapStyleReady) {
         return;
     }
 
-    ensureMapLayers();
-    pointLayerGroup.clearLayers();
-
-    renderHeatMap(denuncias);
+    renderHeatMap();
     renderDenunciaPoints(denuncias);
+    updateMarkersVisibility();
 
     if (selectedMarker) {
         selectedMarker.addTo(map);
     }
+
+    if (userLocationMarker) {
+        userLocationMarker.addTo(map);
+    }
 }
 
-function renderDenunciaPoints(items) {
-    items.forEach((denuncia) => {
-        const marker = L.circleMarker([denuncia.latitude, denuncia.longitude], {
-            color: denuncia.risk.color,
-            fillColor: denuncia.risk.fillColor,
-            fillOpacity: 0.88,
-            radius: 7,
-            weight: 2,
-            pane: 'markerPane'
-        });
-
-        marker.bindPopup(buildDenunciaPopupContent(denuncia));
-        pointLayerGroup.addLayer(marker);
-    });
-}
-
-function buildHeatData(items) {
-    return items
-        .filter((denuncia) => Number.isFinite(denuncia.latitude) && Number.isFinite(denuncia.longitude))
-        .map((denuncia) => [
-            denuncia.latitude,
-            denuncia.longitude,
-            getHeatWeight(denuncia)
-        ]);
-}
-
-function renderHeatMap(items) {
-    if (!map || typeof L.heatLayer !== 'function') {
-        console.warn('Leaflet.heat não está disponível; heatmap não foi renderizado.');
-        return;
+function validateMapboxToken() {
+    if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'MAPBOX_TOKEN') {
+        showError('Configure a variável de ambiente MAPBOX_TOKEN para carregar o mapa Mapbox.');
+        return false;
     }
 
-    if (heatLayer) {
-        map.removeLayer(heatLayer);
-        heatLayer = null;
-    }
-
-    const heatData = buildHeatData(items);
-
-    if (!heatData.length) {
-        return;
-    }
-
-    const radius = getHeatRadius();
-    const blur = getHeatBlur(radius);
-
-    heatLayer = L.heatLayer(heatData, {
-        radius,
-        blur,
-        maxZoom: HEAT_MAX_ZOOM,
-        minOpacity: HEAT_MIN_OPACITY,
-        pane: 'heatPane'
-    }).addTo(map);
+    return true;
 }
 
 function initMap() {
@@ -560,32 +689,53 @@ function initMap() {
         return;
     }
 
-    map = L.map('map', {
-        dragging: true,
-        touchZoom: true,
-        doubleClickZoom: true,
-        scrollWheelZoom: true,
-        boxZoom: true,
-        keyboard: true,
-        zoomControl: true
-    }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_ZOOM);
+    if (!validateMapboxToken()) {
+        return;
+    }
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    ensureMapLayers();
+    map = new mapboxgl.Map({
+        container: 'map',
+        style: MAPBOX_STYLE,
+        center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
+        zoom: DEFAULT_ZOOM
+    });
+
+    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+    map.on('load', () => {
+        mapStyleReady = true;
+        renderMap();
+        updateMarkersVisibility();
+    });
+
+    map.on('style.load', () => {
+        mapStyleReady = true;
+        renderMap();
+        updateMarkersVisibility();
+    });
 
     map.on('click', async (event) => {
-        const { lat, lng } = event.latlng;
+        closeCurrentPopup();
+
+        if (isMapOverlayTarget(event.originalEvent?.target)) {
+            return;
+        }
+
+        const { lng, lat } = event.lngLat;
+        console.log('Clique:', lat, lng);
         await selectLocationFromMap(lat, lng);
     });
 
     map.on('zoomend', () => {
-        updateHeatLayerAppearance();
+        updateHeatmapAppearance();
+        updateMarkersVisibility();
     });
 
-    renderMap();
+    map.on('zoom', () => {
+        updateMarkersVisibility();
+    });
 }
 
 function setSelectedMarker(lat, lon, message = 'Ponto selecionado para a denúncia') {
@@ -593,24 +743,48 @@ function setSelectedMarker(lat, lon, message = 'Ponto selecionado para a denúnc
         return;
     }
 
-    if (selectedMarker) {
-        selectedMarker.setLatLng([lat, lon]);
-        selectedMarker.setPopupContent(message);
-        return;
+    if (!selectedMarker) {
+        selectedMarker = new mapboxgl.Marker({
+            element: createMarkerElement('#f5c518', 'selected-marker'),
+            anchor: 'center'
+        });
     }
 
-    selectedMarker = L.marker([lat, lon], {
-        pane: 'markerPane'
-    }).addTo(map).bindPopup(message);
+    selectedMarker
+        .setLngLat([lon, lat])
+        .setPopup(createPopup(`<div class="map-popup"><strong>${escapeHTML(message)}</strong></div>`));
+
+    if (mapStyleReady) {
+        selectedMarker.addTo(map);
+    }
 }
 
 function clearSelectedMarker() {
-    if (!map || !selectedMarker) {
+    if (!selectedMarker) {
         return;
     }
 
-    map.removeLayer(selectedMarker);
-    selectedMarker = null;
+    selectedMarker.remove();
+}
+
+function setUserLocationMarker(lat, lon) {
+    if (!map) {
+        return;
+    }
+
+    if (!userLocationMarker) {
+        userLocationMarker = new mapboxgl.Marker({
+            color: '#3182ce'
+        });
+    }
+
+    userLocationMarker
+        .setLngLat([lon, lat])
+        .setPopup(new mapboxgl.Popup().setText('Você está aqui'));
+
+    if (mapStyleReady) {
+        userLocationMarker.addTo(map);
+    }
 }
 
 function updateSelectedLocation(lat, lon, label, options = {}) {
@@ -631,7 +805,10 @@ function updateSelectedLocation(lat, lon, label, options = {}) {
     }
 
     if (centerMap && map) {
-        map.setView([selectedLat, selectedLon], zoom);
+        map.flyTo({
+            center: [selectedLon, selectedLat],
+            zoom
+        });
     }
 }
 
@@ -829,11 +1006,19 @@ async function useCurrentLocation() {
                 updateSelectedLocation(lat, lon, data.display_name || 'Endereço não encontrado', {
                     popupMessage: 'Localização atual'
                 });
+                setUserLocationMarker(lat, lon);
+                if (map) {
+                    map.flyTo({
+                        center: [lon, lat],
+                        zoom: USER_ZOOM
+                    });
+                }
                 showToast('Localização preenchida com sucesso.');
             } catch (error) {
                 updateSelectedLocation(lat, lon, 'Endereço não encontrado', {
                     popupMessage: 'Localização atual sem endereço associado'
                 });
+                setUserLocationMarker(lat, lon);
                 showToast('Localização obtida, mas não foi possível converter em endereço.', true);
                 console.error('Erro reverse geocoding:', error);
             } finally {
@@ -1002,6 +1187,7 @@ function setupAddressAutocomplete() {
     });
 
     getLocationButton.addEventListener('click', useCurrentLocation);
+    locateUserMapButton.addEventListener('click', useCurrentLocation);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
