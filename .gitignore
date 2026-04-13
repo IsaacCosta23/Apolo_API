@@ -14,3 +14,4 @@ filter-secrets.ps1
 app/__pycache__/main.cpython-314.pyc
 apolo_codex.db
 .env.local
+.env
