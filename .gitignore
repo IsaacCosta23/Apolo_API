@@ -1,4 +1,3 @@
-.env
 .venv/
 .env.*.swp
 __pycache__/
@@ -13,3 +12,5 @@ stop-server.bat
 filter-secrets.ps1
 .refs/
 app/__pycache__/main.cpython-314.pyc
+apolo_codex.db
+.env.local

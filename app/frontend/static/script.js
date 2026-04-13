@@ -3,14 +3,14 @@ const CRIMES_ENDPOINT = '/denuncias/tipos-crime';
 const DENUNCIAS_ENDPOINT = '/denuncias';
 const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
-const DEFAULT_CENTER = { lat: -8.0476, lng: -34.8770 };
+const DEFAULT_CENTER = { lat: -8.054495285462238, lng: -34.88491002162061 }; 
 const DEFAULT_ZOOM = 13;
 const USER_ZOOM = 15;
 const AUTOCOMPLETE_MIN_LENGTH = 3;
 const REQUEST_TIMEOUT_MS = 15000;
-const HEAT_MIN_OPACITY = 1;
-const HEAT_INTENSITY = 1.5;
-const MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12';
+const HEAT_MIN_OPACITY = 2.0;
+const HEAT_INTENSITY = 0.5;
+const MAPBOX_STYLE = 'mapbox://styles/mapbox/standard';
 
 // Enhanced token handling with debugging
 const MAPBOX_TOKEN = (() => {
@@ -68,6 +68,36 @@ let selectedLon = null;
 let autocompleteController = null;
 let mapStyleReady = false;
 let currentPopup = null;
+let customMapButtonsCreated = false;
+let fullscreenToggleButton = null;
+let refreshMapButton = null;
+
+const FULLSCREEN_ICON = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9V4h5" />
+        <path d="M20 15v5h-5" />
+        <path d="M20 4h-5v5" />
+        <path d="M4 20h5v-5" />
+    </svg>
+`;
+
+const EXIT_FULLSCREEN_ICON = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 4H4v4" />
+        <path d="M16 4h4v4" />
+        <path d="M8 20H4v-4" />
+        <path d="M16 20h4v-4" />
+    </svg>
+`;
+
+const REFRESH_ICON = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6" />
+        <path d="M1 20v-6h6" />
+        <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" />
+        <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14" />
+    </svg>
+`;
 const apiStatus = document.getElementById('api-status');
 const loading = document.getElementById('loading');
 const errorMessage = document.getElementById('error-message');
@@ -543,38 +573,37 @@ function ensureHeatmapLayer() {
                 ['linear'],
                 ['coalesce', ['get', 'peso'], 0],
                 0, 0,
-                1, 1
+                10, 10
             ],
             'heatmap-intensity': [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
-                0, 1,
-                15, 3
+                0, 100,
+                5, 3
             ],
             'heatmap-radius': [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
-                0, 20,
-                15, 50
+                0, 5,
+                15, 15
             ],
             'heatmap-opacity': [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
-                13, 1,
-                15, 0
+                17, 1,
+                20, 4
             ],
             'heatmap-color': [
                 'interpolate',
                 ['linear'],
                 ['heatmap-density'],
-                0, 'rgba(56, 161, 105, 0)',
-                0.15, 'rgba(56, 161, 105, 0.45)',
-                0.35, 'rgba(214, 158, 46, 0.6)',
-                0.6, 'rgba(245, 197, 24, 0.72)',
-                0.8, 'rgba(229, 62, 62, 0.84)',
+                0, 'rgba(245, 197, 24, 0)',
+                0.15, 'rgba(245, 197, 24, 0.35)',
+                0.35, 'rgba(245, 197, 24, 0.72)',
+                0.45, 'rgba(229, 62, 62, 0.84)',
                 1, 'rgba(153, 27, 27, 0.96)'
             ]
         }
@@ -602,7 +631,7 @@ function ensureRiskCircleLayer() {
                     ['get', 'nivel'],
                     'baixo', 15,
                     'medio', 25,
-                    'alto', 35,
+                    'alto', 20,
                     'maximo', 50,
                     20
                 ],
@@ -725,6 +754,152 @@ function validateMapboxToken() {
     return true;
 }
 
+function getMapFullscreenElement() {
+    const mapContainer = map?.getContainer();
+    if (!mapContainer) {
+        return null;
+    }
+
+    return mapContainer.parentElement?.closest('.map-shell') || mapContainer;
+}
+
+function isMapContainerFullscreen() {
+    const fullscreenElement = getMapFullscreenElement();
+    if (!fullscreenElement) {
+        return false;
+    }
+
+    return Boolean(
+        document.fullscreenElement === fullscreenElement ||
+        document.webkitFullscreenElement === fullscreenElement ||
+        document.mozFullScreenElement === fullscreenElement ||
+        document.msFullscreenElement === fullscreenElement
+    );
+}
+
+function updateFullscreenButtonState() {
+    const isFullscreen = isMapContainerFullscreen();
+    if (!fullscreenToggleButton) {
+        return;
+    }
+
+    fullscreenToggleButton.innerHTML = isFullscreen ? EXIT_FULLSCREEN_ICON : FULLSCREEN_ICON;
+    fullscreenToggleButton.title = isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia';
+    fullscreenToggleButton.setAttribute('aria-label', isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia');
+}
+
+async function toggleFullscreen() {
+    const fullscreenElement = getMapFullscreenElement();
+    if (!fullscreenElement) {
+        return;
+    }
+
+    const isFullscreen = isMapContainerFullscreen();
+    try {
+        if (!isFullscreen) {
+            if (fullscreenElement.requestFullscreen) {
+                await fullscreenElement.requestFullscreen();
+            } else if (fullscreenElement.webkitRequestFullscreen) {
+                await fullscreenElement.webkitRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                await document.webkitExitFullscreen();
+            }
+        }
+
+        updateFullscreenButtonState();
+        if (map) {
+            setTimeout(() => map.resize(), 300);
+        }
+    } catch (error) {
+        console.warn('Erro ao alternar fullscreen:', error);
+    }
+}
+
+function handleFullscreenChange() {
+    updateFullscreenButtonState();
+    if (map) {
+        setTimeout(() => map.resize(), 300);
+    }
+}
+
+async function refreshMapData() {
+    if (!map || !mapStyleReady || !refreshMapButton) {
+        return;
+    }
+
+    refreshMapButton.disabled = true;
+    refreshMapButton.classList.add('is-loading');
+    refreshMapButton.setAttribute('aria-busy', 'true');
+
+    try {
+        const data = await fetchJSON(`${API_BASE}${DENUNCIAS_ENDPOINT}`);
+        denuncias = Array.isArray(data) ? data.map(getDenunciaViewModel) : [];
+        renderList();
+
+        const source = map.getSource(MAP_SOURCE_ID);
+        if (source && typeof source.setData === 'function') {
+            source.setData(buildHeatGeoJSON(denuncias));
+        } else {
+            ensureHeatmapSource();
+            ensureHeatmapLayer();
+        }
+
+        renderDenunciaPoints(denuncias);
+        showToast('Dados atualizados com sucesso.');
+    } catch (error) {
+        showError('Erro ao atualizar o mapa. Tente novamente.');
+        console.error('refreshMapData:', error);
+    } finally {
+        refreshMapButton.disabled = false;
+        refreshMapButton.classList.remove('is-loading');
+        refreshMapButton.removeAttribute('aria-busy');
+    }
+}
+
+function createCustomMapButtons() {
+    if (customMapButtonsCreated || !map) {
+        return;
+    }
+
+    const mapContainer = map.getContainer();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'custom-map-controls';
+
+    fullscreenToggleButton = document.createElement('button');
+    fullscreenToggleButton.type = 'button';
+    fullscreenToggleButton.className = 'custom-map-button custom-map-button-fullscreen';
+    fullscreenToggleButton.setAttribute('aria-label', 'Entrar em tela cheia');
+    fullscreenToggleButton.innerHTML = FULLSCREEN_ICON;
+    fullscreenToggleButton.addEventListener('click', toggleFullscreen);
+
+    refreshMapButton = document.createElement('button');
+    refreshMapButton.type = 'button';
+    refreshMapButton.className = 'custom-map-button custom-map-button-refresh';
+    refreshMapButton.setAttribute('aria-label', 'Atualizar mapa');
+    refreshMapButton.innerHTML = REFRESH_ICON;
+    refreshMapButton.addEventListener('click', refreshMapData);
+
+    wrapper.appendChild(fullscreenToggleButton);
+    wrapper.appendChild(refreshMapButton);
+    mapContainer.appendChild(wrapper);
+
+    updateFullscreenButtonState();
+    if (map) {
+        setTimeout(() => map.resize(), 300);
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    customMapButtonsCreated = true;
+}
+
 function initMap() {
     if (map) {
         return;
@@ -744,17 +919,20 @@ function initMap() {
     });
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    createCustomMapButtons();
 
     map.on('load', () => {
         mapStyleReady = true;
         renderMap();
         updateMarkersVisibility();
+        setTimeout(() => map.resize(), 300);
     });
 
     map.on('style.load', () => {
         mapStyleReady = true;
         renderMap();
         updateMarkersVisibility();
+        setTimeout(() => map.resize(), 300);
     });
 
     map.on('click', async (event) => {
