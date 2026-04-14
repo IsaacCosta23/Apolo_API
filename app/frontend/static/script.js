@@ -572,15 +572,15 @@ function ensureHeatmapLayer() {
                 'interpolate',
                 ['linear'],
                 ['coalesce', ['get', 'peso'], 0],
-                0, 0,
-                10, 10
+                0, -0.10,
+                8, 8
             ],
             'heatmap-intensity': [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
                 0, 10,
-                5, 1.50
+                5, 1.20
             ],
             'heatmap-radius': [
                 'interpolate',
@@ -663,6 +663,36 @@ function ensureRiskCircleLayer() {
                 18, 0.4
             ],
             'circle-blur': 0.6
+        }
+    });
+}
+
+function optimizeBuildingExtrusions() {
+    if (!map || !mapStyleReady || typeof map.getStyle !== 'function') {
+        return;
+    }
+
+    const style = map.getStyle();
+    if (!style || !Array.isArray(style.layers)) {
+        console.info('[Mapbox] estilo sem layers para otimização de prédios.');
+        return;
+    }
+
+    const extrusionLayers = style.layers.filter((layer) => layer.type === 'fill-extrusion');
+    if (!extrusionLayers.length) {
+        console.info('[Mapbox] nenhuma camada fill-extrusion encontrada para otimização.');
+        return;
+    }
+
+    extrusionLayers.forEach((layer) => {
+        const layerId = layer.id;
+        try {
+            map.setLayerZoomRange(layerId, 15, 22);
+            map.setPaintProperty(layerId, 'fill-extrusion-opacity', 0.5);
+            map.setPaintProperty(layerId, 'fill-extrusion-height', ['*', ['get', 'height'], 0.7]);
+            console.info(`[Mapbox] otimização aplicada em camada de prédio: ${layerId}`);
+        } catch (error) {
+            console.warn(`[Mapbox] falha ao otimizar camada de prédio ${layerId}:`, error);
         }
     });
 }
@@ -763,6 +793,30 @@ function getMapFullscreenElement() {
     return mapContainer.parentElement?.closest('.map-shell') || mapContainer;
 }
 
+function isFullscreen() {
+    return Boolean(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+    );
+}
+
+function ajustarAlturaMapa() {
+    const mapElement = document.getElementById('map');
+    if (!mapElement) {
+        return;
+    }
+
+    mapElement.style.height = isFullscreen() ? '830px' : '500px';
+
+    if (map) {
+        setTimeout(() => {
+            map.resize();
+        }, 200);
+    }
+}
+
 function isMapContainerFullscreen() {
     const fullscreenElement = getMapFullscreenElement();
     if (!fullscreenElement) {
@@ -811,9 +865,9 @@ async function toggleFullscreen() {
         }
 
         updateFullscreenButtonState();
-        if (map) {
-            setTimeout(() => map.resize(), 300);
-        }
+        setTimeout(() => {
+            ajustarAlturaMapa();
+        }, 200);
     } catch (error) {
         console.warn('Erro ao alternar fullscreen:', error);
     }
@@ -821,9 +875,7 @@ async function toggleFullscreen() {
 
 function handleFullscreenChange() {
     updateFullscreenButtonState();
-    if (map) {
-        setTimeout(() => map.resize(), 300);
-    }
+    ajustarAlturaMapa();
 }
 
 async function refreshMapData() {
@@ -924,6 +976,7 @@ function initMap() {
     map.on('load', () => {
         mapStyleReady = true;
         renderMap();
+        optimizeBuildingExtrusions();
         updateMarkersVisibility();
         setTimeout(() => map.resize(), 300);
     });
@@ -931,6 +984,7 @@ function initMap() {
     map.on('style.load', () => {
         mapStyleReady = true;
         renderMap();
+        optimizeBuildingExtrusions();
         updateMarkersVisibility();
         setTimeout(() => map.resize(), 300);
     });

@@ -425,14 +425,15 @@ main {
 }
 
 #map {
-    height: 830px;
     width: 100%;
+    height: 500px;
     position: relative;
     z-index: 10;
     pointer-events: auto;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-light);
     overflow: hidden;
+    transition: height 0.1s ease;
 }
 
 .map-shell {
@@ -525,6 +526,7 @@ main {
 .mapboxgl-canvas {
     width: 100%;
     height: 100%;
+    transition: height 0.1ms ease;
 }
 
 .map-popup {
