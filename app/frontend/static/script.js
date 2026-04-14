@@ -579,15 +579,15 @@ function ensureHeatmapLayer() {
                 'interpolate',
                 ['linear'],
                 ['zoom'],
-                0, 100,
-                5, 3
+                0, 10,
+                5, 1.50
             ],
             'heatmap-radius': [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
                 0, 5,
-                15, 15
+                10, 10
             ],
             'heatmap-opacity': [
                 'interpolate',
@@ -601,10 +601,10 @@ function ensureHeatmapLayer() {
                 ['linear'],
                 ['heatmap-density'],
                 0, 'rgba(245, 197, 24, 0)',
-                0.15, 'rgba(245, 197, 24, 0.35)',
-                0.35, 'rgba(245, 197, 24, 0.72)',
-                0.45, 'rgba(229, 62, 62, 0.84)',
-                1, 'rgba(153, 27, 27, 0.96)'
+                0.12, 'rgba(245, 197, 24, 0.35)',
+                0.30, 'rgba(245, 197, 24, 0.72)',
+                0.55, 'rgba(229, 62, 62, 0.84)',
+                1.10, 'rgba(153, 27, 27, 0.96)'
             ]
         }
     });
