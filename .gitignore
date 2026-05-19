@@ -15,3 +15,7 @@ app/__pycache__/main.cpython-314.pyc
 apolo_codex.db
 .env.local
 .env
+ARCHITECTURE.md
+CHANGELOG_SUPABASE.md
+QUICKSTART.md
+SUPABASE_MIGRATION.md
